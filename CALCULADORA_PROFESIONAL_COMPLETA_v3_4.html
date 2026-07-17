@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DOMO BAIRES - Calculadora PRO v3 (ACIDOME COMPATIBLE)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@r128/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 10px;
+    }
+    
+    .header {
+      background: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    
+    .header h1 {
+      color: #100b56;
+      font-size: 18px;
+      margin-bottom: 4px;
+    }
+    
+    .header p {
+      font-size: 11px;
+      color: #666;
+    }
+    
+    .container {
+      display: grid;
+      grid-template-columns: 380px 1fr 380px;
+      gap: 12px;
+      height: calc(100vh - 80px);
+      max-width: 1700px;
+      margin: 0 auto;
+    }
+    
+    .panel {
+      background: white;
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      overflow-y: auto;
+    }
+    
+    .panel-title {
+      color: #100b56;
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #667eea;
+    }
+    
+    .section {
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .section:last-child {
+      border-bottom: none;
+    }
+    
+    .section-title {
+      font-size: 11px;
+      color: #764ba2;
+      text-transform: uppercase;
+      font-weight: 700;
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
+    }
+    
+    .form-group {
+      margin-bottom: 10px;
+    }
+    
+    label {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      margin-bottom: 3px;
+      color: #333;
+    }
+    
+    input, select {
+      width: 100%;
+      padding: 6px;
+      border: 1.5px solid #ddd;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: 'Courier New', monospace;
+      transition: all 0.2s;
+    }
+    
+    input:focus, select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 6px 0;
+    }
+    
+    input[type="checkbox"] {
+      width: auto;
+      cursor: pointer;
+    }
+    
+    .hint {
+      font-size: 9px;
+      color: #999;
+      margin-top: 2px;
+    }
+    
+    .metrics-compact {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 10px 0;
+    }
+    
+    .metric-small {
+      background: linear-gradient(135deg, #f5f7fa 0%, #e3e9f3 100%);
+      padding: 8px;
+      border-radius: 4px;
+      text-align: center;
+    }
+    
+    .metric-label-small {
+      font-size: 8px;
+      color: #666;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    
+    .metric-value-small {
+      font-size: 13px;
+      font-weight: 700;
+      color: #667eea;
+      font-family: 'Courier New', monospace;
+    }
+    
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 12px;
+    }
+    
+    button {
+      padding: 8px;
+      background: white;
+      border: 1.5px solid #667eea;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      color: #667eea;
+      transition: all 0.2s;
+    }
+    
+    button:hover {
+      background: #f0f4ff;
+      transform: translateY(-1px);
+    }
+    
+    button.primary {
+      background: #667eea;
+      color: white;
+      grid-column: 1 / -1;
+      padding: 10px;
+      font-size: 12px;
+    }
+    
+    button.primary:hover {
+      background: #5568d3;
+    }
+    
+    .viewport {
+      background: #0a0e27;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    
+    .viewport-info {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 10px;
+      z-index: 10;
+      max-width: 180px;
+    }
+    
+    .viewport-info h3 {
+      color: #667eea;
+      margin-bottom: 4px;
+      font-size: 11px;
+    }
+    
+    .result-item {
+      background: #f9f9f9;
+      border-left: 3px solid #667eea;
+      padding: 8px;
+      margin-bottom: 8px;
+      border-radius: 3px;
+    }
+    
+    .result-label {
+      font-size: 9px;
+      color: #999;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    
+    .result-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: #100b56;
+      font-family: 'Courier New', monospace;
+    }
+    
+    .status {
+      padding: 6px 10px;
+      background: #e8f5e9;
+      border-left: 3px solid #4caf50;
+      border-radius: 3px;
+      font-size: 10px;
+      color: #2e7d32;
+      margin-bottom: 8px;
+    }
+    
+    .status.error {
+      background: #ffebee;
+      border-left-color: #f44336;
+      color: #c62828;
+    }
+    
+    .tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    
+    .tab-btn {
+      padding: 6px 10px;
+      background: #f0f0f0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 600;
+      color: #666;
+      transition: all 0.2s;
+    }
+    
+    .tab-btn.active {
+      background: #667eea;
+      color: white;
+      border-color: #667eea;
+    }
+    
+    .tab-btn:hover:not(.active) {
+      background: #e8e8e8;
+    }
+    
+    @media (max-width: 1400px) {
+      .container {
+        grid-template-columns: 1fr;
+        height: auto;
+      }
+      
+      .panel {
+        max-height: 45vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🔷 DOMO BAIRES - Calculadora PRO v3</h1>
+    <p>Compatible con Acidome | Todos los parámetros disponibles</p>
+  </div>
+  
+  <div class="container">
+    
+    <!-- LEFT PANEL -->
+    <div class="panel">
+      <div class="panel-title">⚙️ CONFIGURACIÓN</div>
+      
+      <div id="status" class="status" style="display:none;"></div>
+      
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('geometry')">Geometría</button>
+        <button class="tab-btn" onclick="switchTab('project')">Proyecto</button>
+        <button class="tab-btn" onclick="switchTab('size')">Tamaño</button>
+      </div>
+      
+      <!-- TAB: GEOMETRY -->
+      <div id="geometry-tab">
+        <div class="section">
+          <div class="section-title">Poliedro</div>
+          <div class="form-group">
+            <label>Tipo</label>
+            <select id="polyhedron" onchange="updateAll()">
+              <option value="icosahedron">Icosaedro (20 caras)</option>
+              <option value="octahedron">Octaedro (8 caras)</option>
+            </select>
+            <div class="hint">Base geométrica del domo</div>
+          </div>
+        </div>
+        
+        <div class="section">
+          <div class="section-title">Subdivisión</div>
+          <div class="form-group">
+            <label>Frecuencia (V)</label>
+            <input type="number" id="frequency" value="4" min="1" max="8">
+            <div class="hint">1-8: Mayor = más piezas</div>
+          </div>
+          
+          <div class="form-group">
+            <label>Método</label>
+            <select id="subdivMethod" onchange="updateAll()">
+              <option value="equal_chords">Cuerdas Iguales</option>
+              <option value="equal_arcs">Arcos Iguales</option>
+              <option value="mexican">Mexicano</option>
+              <option value="kruschke">Kruschke</option>
+            </select>
+            <div class="hint">Patrón de subdivisión</div>
+          </div>
+        </div>
+        
+        <div class="section">
+          <div class="section-title">Simetría</div>
+          <div class="form-group">
+            <label>Rotacional</label>
+            <select id="rotSymmetry" onchange="updateAll()">
+              <option value="pentad">Pentada (5x)</option>
+              <option value="cross">Cruz (4x)</option>
+              <option value="triad">Tríada (3x)</option>
+            </select>
+            <div class="hint">Orientación de caras</div>
+          </div>
+        </div>
+        
+        <div class="section">
+          <div class="section-title">Esfera</div>
+          <div class="form-group">
+            <label>Porción</label>
+            <select id="portion" onchange="updateAll()">
+              <option value="0.25">1/4 (25%)</option>
+              <option value="0.5">1/2 (50%)</option>
+              <option value="0.625">5/8 (62.5%) - Parque Leloir</option>
+              <option value="0.75">3/4 (75%)</option>
+              <option value="0.92">23/25 (92%)</option>
+              <option value="1">1/1 (100%)</option>
+            </select>
+            <div class="hint">Qué % de esfera</div>
+          </div>
+          
+          <div class="form-group">
+            <label>Circunscripción</label>
+            <select id="circumscription" onchange="updateAll()">
+              <option value="none">Ninguna</option>
+              <option value="inscribed">Inscrita (dentro)</option>
+              <option value="circumscribed">Descrita (afuera)</option>
+            </select>
+            <div class="hint">Relación esfera-poliedro</div>
+          </div>
+          
+          <div class="checkbox-group">
+            <input type="checkbox" id="alignBase" checked onchange="updateAll()">
+            <label for="alignBase" style="margin: 0; font-size: 10px;">Alinear base</label>
+          </div>
+        </div>
+      </div>
+      
+      <!-- TAB: PROJECT -->
+      <div id="project-tab" style="display:none;">
+        <div class="section">
+          <div class="section-title">Tamaño</div>
+          <div class="form-group">
+            <label>Radio (m)</label>
+            <input type="number" id="radius" value="4" min="0.5" max="20" step="0.1">
+            <div class="hint">Radio de la esfera</div>
+          </div>
+        </div>
+        
+        <div class="section">
+          <div class="section-title">Conexión</div>
+          <div class="form-group">
+            <label>Tipo</label>
+            <select id="connType" onchange="updateConnFields(); updateAll();">
+              <option value="goodkarma">Buen Karma (Bolas)</option>
+              <option value="piped">Tubería (Recta)</option>
+              <option value="semicone">Semicono</option>
+              <option value="cone">Cono</option>
+              <option value="joint">Articulación</option>
+            </select>
+            <div class="hint">Cómo se unen las barras</div>
+          </div>
+          
+          <div class="form-group" id="diameterGroup">
+            <label>Diámetro tubo (mm)</label>
+            <input type="number" id="tubeDiameter" value="108" min="50" max="300" step="5">
+            <div class="hint">Solo para Buen Karma/Tubería</div>
+          </div>
+        </div>
+        
+        <div class="section">
+          <div class="section-title">Orientación</div>
+          <div class="checkbox-group">
+            <input type="checkbox" id="clockwise" checked onchange="updateAll()">
+            <label for="clockwise" style="margin: 0; font-size: 10px;">Girar sentido horario</label>
+          </div>
+        </div>
+      </div>
+      
+      <!-- TAB: SIZE -->
+      <div id="size-tab" style="display:none;">
+        <div class="section">
+          <div class="section-title">Vigas</div>
+          <div class="form-group">
+            <label>Ancho (mm)</label>
+            <input type="number" id="beamWidth" value="120" min="50" max="300" step="10">
+          </div>
+          
+          <div class="form-group">
+            <label>Grosor (mm)</label>
+            <input type="number" id="beamThickness" value="40" min="20" max="100" step="5">
+          </div>
+        </div>
+        
+        <div class="metrics-compact">
+          <div class="metric-small">
+            <div class="metric-label-small">Altura</div>
+            <div class="metric-value-small" id="m-height">0.00</div>
+          </div>
+          <div class="metric-small">
+            <div class="metric-label-small">Paneles</div>
+            <div class="metric-value-small" id="m-panels">0</div>
+          </div>
+          <div class="metric-small">
+            <div class="metric-label-small">Área</div>
+            <div class="metric-value-small" id="m-area">0</div>
+          </div>
+          <div class="metric-small">
+            <div class="metric-label-small">Peso</div>
+            <div class="metric-value-small" id="m-weight">0</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="buttons">
+        <button class="primary" onclick="calculateDome()">🔄 CALCULAR</button>
+        <button onclick="exportJSON()">📥 JSON</button>
+      </div>
+    </div>
+    
+    <!-- CENTER: 3D VIEWPORT -->
+    <div class="viewport">
+      <canvas id="canvas"></canvas>
+      <div class="viewport-info">
+        <h3>Estructura 3D</h3>
+        <p id="viewInfo">Inicializando...</p>
+      </div>
+    </div>
+    
+    <!-- RIGHT PANEL -->
+    <div class="panel">
+      <div class="panel-title">📊 RESULTADOS</div>
+      
+      <div class="result-item">
+        <div class="result-label">Diámetro base</div>
+        <div class="result-value" id="r-diameter">0.00</div>
+        <div style="font-size: 9px; color: #999;">m</div>
+      </div>
+      
+      <div class="result-item">
+        <div class="result-label">Altura interior</div>
+        <div class="result-value" id="r-height">0.00</div>
+        <div style="font-size: 9px; color: #999;">m</div>
+      </div>
+      
+      <div class="result-item">
+        <div class="result-label">Área cubierta</div>
+        <div class="result-value" id="r-area">0.00</div>
+        <div style="font-size: 9px; color: #999;">m²</div>
+      </div>
+      
+      <div class="result-item">
+        <div class="result-label">Paneles totales</div>
+        <div class="result-value" id="r-panels">0</div>
+        <div style="font-size: 9px; color: #999;">caras</div>
+      </div>
+      
+      <div class="result-item">
+        <div class="result-label">Barras únicas</div>
+        <div class="result-value" id="r-edges">0</div>
+        <div style="font-size: 9px; color: #999;">aristas</div>
+      </div>
+      
+      <div class="result-item">
+        <div class="result-label">Nodos de conexión</div>
+        <div class="result-value" id="r-vertices">0</div>
+        <div style="font-size: 9px; color: #999;">vértices</div>
+      </div>
+      
+      <div class="section" style="margin-top: 12px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+        <div class="section-title">Bill of Materials</div>
+        
+        <div class="result-item" style="border-left-color: #4caf50;">
+          <div class="result-label">Vigas principales</div>
+          <div class="result-value" id="bom-beams">0</div>
+          <div style="font-size: 9px; color: #666; margin-top: 3px;">
+            Peso: <strong id="bom-weight">0</strong> kg
+          </div>
+        </div>
+        
+        <div class="result-item" style="border-left-color: #2196f3;">
+          <div class="result-label">Conexiones</div>
+          <div class="result-value" id="bom-connectors">0</div>
+        </div>
+        
+        <div class="result-item" style="border-left-color: #ff9800;">
+          <div class="result-label">Pernos M12</div>
+          <div class="result-value" id="bom-bolts">0</div>
+        </div>
+      </div>
+      
+      <button onclick="exportCSV()" style="width: 100%;">📋 Exportar BOM</button>
+    </div>
+  </div>
+
+  <script>
+    // ===== THREE.JS SETUP =====
+    let scene, camera, renderer, controls, mesh;
+    
+    function initThreeJS() {
+      if (scene) return;
+      
+      const canvas = document.getElementById('canvas');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x0a0e27);
+      
+      const w = canvas.clientWidth || 800, h = canvas.clientHeight || 600;
+      camera = new THREE.PerspectiveCamera(75, w / h, 0.1, 10000);
+      camera.position.set(0, 8, 8);
+      
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(window.devicePixelRatio || 1);
+      
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 1.5;
+      
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+      
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(5, 10, 7);
+      scene.add(directionalLight);
+      
+      const gridHelper = new THREE.GridHelper(40, 40, 0x444444, 0x222222);
+      scene.add(gridHelper);
+      
+      animate();
+    }
+    
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    
+    // ===== VECTOR MATH =====
+    function dot(a, b) { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]; }
+    function norm(a) { return Math.sqrt(dot(a, a)); }
+    function normalize(v, R) {
+      const l = norm(v);
+      return l === 0 ? [R, 0, 0] : [v[0]/l*R, v[1]/l*R, v[2]/l*R];
+    }
+    
+    // ===== ICOSAHEDRON =====
+    function buildIcosahedron() {
+      const t = (1 + Math.sqrt(5)) / 2;
+      const verts = [
+        [-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0],
+        [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t],
+        [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]
+      ];
+      
+      const faces = [
+        [0,11,5],[0,5,1],[0,1,7],[0,7,10],[0,10,11],
+        [1,5,9],[5,11,4],[11,10,2],[10,7,6],[7,1,8],
+        [3,9,4],[3,4,2],[3,2,6],[3,6,8],[3,8,9],
+        [4,9,5],[2,4,11],[6,2,10],[8,6,7],[9,8,1]
+      ];
+      
+      return { verts, faces };
+    }
+    
+    function buildOctahedron() {
+      const verts = [
+        [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]
+      ];
+      
+      const faces = [
+        [0,2,4], [0,4,3], [0,3,5], [0,5,2],
+        [1,4,2], [1,3,4], [1,5,3], [1,2,5]
+      ];
+      
+      return { verts, faces };
+    }
+    
+    // ===== SUBDIVISION =====
+    function subdivideToSphere(ico, freq, R) {
+      const { verts: baseVerts, faces: baseFaces } = ico;
+      const verts = [];
+      const faces = [];
+      const map = new Map();
+      
+      function getIndex(p) {
+        const np = normalize(p, R);
+        const key = np.map(c => c.toFixed(6)).join(',');
+        
+        if (map.has(key)) return map.get(key);
+        const idx = verts.length / 3;
+        verts.push(...np);
+        map.set(key, idx);
+        return idx;
+      }
+      
+      for (const face of baseFaces) {
+        const A = baseVerts[face[0]];
+        const B = baseVerts[face[1]];
+        const C = baseVerts[face[2]];
+        
+        const grid = [];
+        for (let i = 0; i <= freq; i++) {
+          grid[i] = [];
+          for (let j = 0; j <= freq - i; j++) {
+            const u = i / freq, v = j / freq;
+            const p = [
+              A[0] + (B[0]-A[0])*u + (C[0]-A[0])*v,
+              A[1] + (B[1]-A[1])*u + (C[1]-A[1])*v,
+              A[2] + (B[2]-A[2])*u + (C[2]-A[2])*v
+            ];
+            grid[i][j] = getIndex(p);
+          }
+        }
+        
+        for (let i = 0; i < freq; i++) {
+          for (let j = 0; j <= freq - i - 1; j++) {
+            const v0 = grid[i][j], v1 = grid[i+1][j], v2 = grid[i][j+1];
+            faces.push([v0, v1, v2]);
+            if (j < freq - i - 1) {
+              faces.push([v1, grid[i+1][j+1], v2]);
+            }
+          }
+        }
+      }
+      
+      return { verts, faces };
+    }
+    
+    // ===== CREATE GEOMETRY =====
+    function createDomeGeometry() {
+      const freq = parseInt(document.getElementById('frequency').value);
+      const R = parseFloat(document.getElementById('radius').value);
+      const portion = parseFloat(document.getElementById('portion').value);
+      const polyhedron = document.getElementById('polyhedron').value;
+      
+      const poly = polyhedron === 'icosahedron' ? buildIcosahedron() : buildOctahedron();
+      const { verts, faces } = subdivideToSphere(poly, freq, R);
+      
+      const z_threshold = R * (1 - 2 * portion);
+      const filtered = faces.filter(face => {
+        return face.every(idx => verts[idx*3 + 2] >= z_threshold - 0.01);
+      });
+      
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
+      geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(filtered.flat()), 1));
+      geometry.computeVertexNormals();
+      
+      return geometry;
+    }
+    
+    function updateVisualization() {
+      initThreeJS();
+      
+      if (mesh) scene.remove(mesh);
+      
+      try {
+        const geom = createDomeGeometry();
+        const mat = new THREE.MeshPhongMaterial({
+          color: 0x667eea,
+          emissive: 0x334499,
+          shininess: 30,
+          side: THREE.DoubleSide
+        });
+        
+        mesh = new THREE.Mesh(geom, mat);
+        scene.add(mesh);
+        
+        const freq = document.getElementById('frequency').value;
+        const R = document.getElementById('radius').value;
+        document.getElementById('viewInfo').textContent = `V=${freq} | R=${R}m`;
+        
+      } catch (e) {
+        showStatus('Error 3D: ' + e.message, 'error');
+      }
+    }
+    
+    // ===== CALCULATE =====
+    function calculateDome() {
+      try {
+        const freq = parseInt(document.getElementById('frequency').value);
+        const R = parseFloat(document.getElementById('radius').value);
+        const portion = parseFloat(document.getElementById('portion').value);
+        const width = parseFloat(document.getElementById('beamWidth').value);
+        const thickness = parseFloat(document.getElementById('beamThickness').value);
+        const polyhedron = document.getElementById('polyhedron').value;
+        
+        if (isNaN(freq) || freq < 1 || freq > 8) throw new Error('Frecuencia inválida');
+        if (isNaN(R) || R < 0.5 || R > 20) throw new Error('Radio inválido');
+        
+        const poly = polyhedron === 'icosahedron' ? buildIcosahedron() : buildOctahedron();
+        const { verts, faces } = subdivideToSphere(poly, freq, R);
+        
+        const z_threshold = R * (1 - 2 * portion);
+        const filtered = faces.filter(face => {
+          return face.every(idx => verts[idx*3 + 2] >= z_threshold - 0.01);
+        });
+        
+        const panelCount = filtered.length;
+        const height = R * 2 * portion;
+        const diameter = R * 2;
+        const area = Math.PI * R * R * portion;
+        
+        const edges = new Set();
+        filtered.forEach(face => {
+          edges.add([Math.min(face[0], face[1]), Math.max(face[0], face[1])].join(','));
+          edges.add([Math.min(face[1], face[2]), Math.max(face[1], face[2])].join(','));
+          edges.add([Math.min(face[2], face[0]), Math.max(face[2], face[0])].join(','));
+        });
+        const edgeCount = edges.size;
+        
+        const uniqueVertices = new Set();
+        filtered.forEach(face => {
+          face.forEach(v => uniqueVertices.add(v));
+        });
+        const vertexCount = uniqueVertices.size;
+        
+        const beamQty = edgeCount;
+        const unitWeight = (width * thickness * 0.00012) / 1000;
+        const beamWeight = beamQty * height * unitWeight * 100;
+        const connectorQty = vertexCount;
+        const boltQty = edgeCount * 3;
+        
+        // Update UI
+        document.getElementById('m-height').textContent = height.toFixed(2);
+        document.getElementById('m-panels').textContent = panelCount;
+        document.getElementById('m-area').textContent = area.toFixed(1);
+        document.getElementById('m-weight').textContent = Math.round(beamWeight);
+        
+        document.getElementById('r-diameter').textContent = diameter.toFixed(2);
+        document.getElementById('r-height').textContent = height.toFixed(2);
+        document.getElementById('r-area').textContent = area.toFixed(2);
+        document.getElementById('r-panels').textContent = panelCount;
+        document.getElementById('r-edges').textContent = edgeCount;
+        document.getElementById('r-vertices').textContent = vertexCount;
+        
+        document.getElementById('bom-beams').textContent = beamQty;
+        document.getElementById('bom-weight').textContent = Math.round(beamWeight);
+        document.getElementById('bom-connectors').textContent = connectorQty;
+        document.getElementById('bom-bolts').textContent = boltQty;
+        
+        showStatus(`✅ ${panelCount} paneles | ${edgeCount} barras | Peso: ${Math.round(beamWeight)}kg`);
+        updateVisualization();
+        
+      } catch (e) {
+        showStatus('Error: ' + e.message, 'error');
+      }
+    }
+    
+    function showStatus(msg, type = 'success') {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = 'status ' + (type === 'error' ? 'error' : '');
+      el.style.display = 'block';
+    }
+    
+    function switchTab(tab) {
+      document.getElementById('geometry-tab').style.display = tab === 'geometry' ? 'block' : 'none';
+      document.getElementById('project-tab').style.display = tab === 'project' ? 'block' : 'none';
+      document.getElementById('size-tab').style.display = tab === 'size' ? 'block' : 'none';
+      
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+    
+    function updateConnFields() {
+      const type = document.getElementById('connType').value;
+      const visible = type === 'goodkarma' || type === 'piped';
+      document.getElementById('diameterGroup').style.display = visible ? 'block' : 'none';
+    }
+    
+    function updateAll() {
+      updateVisualization();
+      calculateDome();
+    }
+    
+    function exportJSON() {
+      const data = {
+        polyhedron: document.getElementById('polyhedron').value,
+        frequency: document.getElementById('frequency').value,
+        radius: document.getElementById('radius').value,
+        portion: document.getElementById('portion').value,
+        subdivMethod: document.getElementById('subdivMethod').value,
+        rotSymmetry: document.getElementById('rotSymmetry').value,
+        circumscription: document.getElementById('circumscription').value,
+        connType: document.getElementById('connType').value,
+        beamWidth: document.getElementById('beamWidth').value,
+        beamThickness: document.getElementById('beamThickness').value,
+        timestamp: new Date().toISOString()
+      };
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'domo_' + new Date().toISOString().slice(0,10) + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    
+    function exportCSV() {
+      const beams = document.getElementById('bom-beams').textContent;
+      const weight = document.getElementById('bom-weight').textContent;
+      const connectors = document.getElementById('bom-connectors').textContent;
+      const bolts = document.getElementById('bom-bolts').textContent;
+      
+      const csv = `Componente,Cantidad,Peso (kg)\nVigas Principales,${beams},${weight}\nConexiones,${connectors},0\nPernos M12,${bolts},0`;
+      
+      const blob = new Blob([csv], { type: 'text/csv; charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'bom_' + new Date().toISOString().slice(0,10) + '.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    
+    // ===== INIT =====
+    window.addEventListener('load', () => {
+      initThreeJS();
+      updateConnFields();
+      showStatus('✅ Calculadora PRO v3 inicializada');
+    });
+    
+    window.addEventListener('resize', () => {
+      if (camera) {
+        const canvas = document.getElementById('canvas');
+        const w = canvas.clientWidth, h = canvas.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      }
+    });
+  </script>
+</body>
+</html>
