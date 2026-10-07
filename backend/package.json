@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test test/*.test.js",
-    "validar": "node scripts/validar-catalogo.js"
+    "validar": "node scripts/validar-catalogo.js",
+    "demo": "node scripts/armar-demo.js"
   },
   "license": "UNLICENSED"
 }

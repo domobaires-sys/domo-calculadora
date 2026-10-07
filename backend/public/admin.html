@@ -58,6 +58,8 @@
   th { color: var(--gris); font-size: 12px; text-transform: uppercase; }
   .ayuda { color: var(--gris); font-size: 12px; margin: 4px 0 10px; }
   #login { max-width: 380px; margin: 80px auto; }
+  .dialogo-fondo { position: fixed; inset: 0; background: rgba(20,20,40,.35); display: grid; place-items: center; z-index: 20; padding: 16px; }
+  .dialogo { width: min(440px, 100%); margin: 0; }
   h2 { font-size: 18px; margin: 0 0 4px; color: var(--azul); }
   h3 { font-size: 14px; margin: 16px 0 8px; }
 </style>
@@ -114,6 +116,25 @@ const store = {
   set(k, v) { try { sessionStorage.setItem(k, v); } catch {} },
   del(k) { try { sessionStorage.removeItem(k); } catch {} },
 };
+// Diálogos propios (en lugar de prompt/confirm del navegador, que algunos
+// entornos bloquean). Devuelven una promesa.
+function dialogo({ texto, conCampo = false, valor = '', soloAceptar = false }) {
+  return new Promise(resolve => {
+    const input = conCampo ? h('input', { id: 'dialogo-campo', value: valor, style: 'width:100%' }) : null;
+    const cerrar = r => { fondo.remove(); resolve(r); };
+    const aceptar = h('button', { class: 'btn primario', onclick: () => cerrar(conCampo ? input.value.trim() || null : true) }, 'Aceptar');
+    const fondo = h('div', { class: 'dialogo-fondo', onkeydown: e => { if (e.key === 'Escape') cerrar(conCampo ? null : false); if (e.key === 'Enter' && conCampo) aceptar.click(); } },
+      h('div', { class: 'tarjeta dialogo', role: 'dialog', 'aria-modal': 'true' },
+        h('p', { style: 'white-space:pre-line;margin-top:0' }, texto), input,
+        h('div', { class: 'chips', style: 'justify-content:flex-end;margin-top:12px' },
+          soloAceptar ? null : h('button', { class: 'btn', onclick: () => cerrar(conCampo ? null : false) }, 'Cancelar'), aceptar)));
+    document.body.append(fondo);
+    (input || aceptar).focus();
+  });
+}
+const preguntar = (texto, valor) => dialogo({ texto, conCampo: true, valor });
+const confirmar = texto => dialogo({ texto });
+const avisar = texto => dialogo({ texto, soloAceptar: true });
 const slug = t => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 50) || 'opcion';
 
 const MODOS = {
@@ -180,8 +201,8 @@ async function cargar() {
   render();
 }
 
-$('#btn-descartar').addEventListener('click', () => {
-  if (!confirm('¿Descartar todos los cambios sin publicar?')) return;
+$('#btn-descartar').addEventListener('click', async () => {
+  if (!await confirmar('¿Descartar todos los cambios sin publicar?')) return;
   cat = JSON.parse(original); render();
 });
 
@@ -267,8 +288,8 @@ function vistaOpciones() {
     h('button', { class: 'btn mini', title: 'Subir', onclick: e => { e.stopPropagation(); if (mover(cat.pasos, i, -1)) { pasoSel = i - 1; render(); } } }, '↑'),
     h('button', { class: 'btn mini', title: 'Bajar', onclick: e => { e.stopPropagation(); if (mover(cat.pasos, i, 1)) { pasoSel = i + 1; render(); } } }, '↓'))));
 
-  const agregarPaso = h('button', { class: 'btn', style: 'margin-top:10px;width:100%', onclick: () => {
-    const titulo = prompt('Nombre del nuevo paso (ej. "Calefacción")');
+  const agregarPaso = h('button', { class: 'btn', style: 'margin-top:10px;width:100%', onclick: async () => {
+    const titulo = await preguntar('Nombre del nuevo paso (ej. "Calefacción")');
     if (!titulo) return;
     cat.pasos.push({ id: idUnico(slug(titulo)), titulo, descripcion: '', tipo: 'unica', requerido: false, activo: true, orden: cat.pasos.length + 1, opciones: [] });
     pasoSel = cat.pasos.length - 1; render();
@@ -285,9 +306,9 @@ function editorPaso(paso) {
   const esTamano = paso.id === cat.ajustes.paso_tamano;
   const cab = h('div', { class: 'tarjeta' },
     h('div', { class: 'opcion-cab' }, h('h2', { style: 'flex:1' }, paso.titulo || paso.id), h('span', { class: 'id' }, paso.id),
-      h('button', { class: 'btn peligro', onclick: () => {
-        if (esLinea || esTamano) return alert('Este paso define la línea o el tamaño. Cambialo primero en "Ajustes generales".');
-        if (!confirm(`¿Eliminar el paso "${paso.titulo}" y todas sus opciones?`)) return;
+      h('button', { class: 'btn peligro', onclick: async () => {
+        if (esLinea || esTamano) return avisar('Este paso define la línea o el tamaño. Cambialo primero en "Ajustes generales".');
+        if (!await confirmar(`¿Eliminar el paso "${paso.titulo}" y todas sus opciones?`)) return;
         cat.pasos.splice(pasoSel, 1); pasoSel = Math.max(0, pasoSel - 1); render();
       } }, 'Eliminar paso')),
     esLinea ? h('p', { class: 'ayuda' }, 'Este paso define la LÍNEA. Otras opciones pueden limitarse a ciertas líneas.') : null,
@@ -306,11 +327,11 @@ function editorPaso(paso) {
   const opciones = h('div', { class: 'tarjeta' },
     h('h3', { style: 'margin-top:0' }, `Opciones (${paso.opciones.length})`),
     paso.opciones.map((op, i) => editorOpcion(paso, op, i)),
-    h('button', { class: 'btn', onclick: () => {
-      const nombre = prompt('Nombre de la nueva opción');
+    h('button', { class: 'btn', onclick: async () => {
+      const nombre = await preguntar('Nombre de la nueva opción');
       if (!nombre) return;
       const nueva = { id: idUnico(slug(nombre)), nombre, descripcion: '', precio: { modo: 'fijo', valor: 0 }, activo: true };
-      if (esTamano) nueva.diametro_m = Number(prompt('Diámetro en metros', '6')) || 6;
+      if (esTamano) nueva.diametro_m = Number(await preguntar('Diámetro en metros', '6')) || 6;
       paso.opciones.push(nueva); render();
     } }, '+ Agregar opción'));
   return h('div', {}, cab, opciones);
@@ -410,9 +431,9 @@ function editorOpcion(paso, op, i) {
         const copia = structuredClone(op); copia.id = idUnico(op.id + '_copia'); copia.nombre = op.nombre + ' (copia)';
         paso.opciones.splice(i + 1, 0, copia); render();
       } }, 'Duplicar'),
-      h('button', { class: 'btn mini peligro', onclick: () => {
+      h('button', { class: 'btn mini peligro', onclick: async () => {
         const usos = cat.pasos.flatMap(p => p.opciones.filter(o => o.reglas && Object.values(o.reglas).some(v => Array.isArray(v) && v.includes(op.id))).map(o => o.nombre));
-        if (!confirm(`¿Eliminar "${op.nombre}"?` + (usos.length ? `\n\nOjo: la usan las reglas de: ${usos.join(', ')}. Desactivarla puede ser mejor.` : ''))) return;
+        if (!await confirmar(`¿Eliminar "${op.nombre}"?` + (usos.length ? `\n\nOjo: la usan las reglas de: ${usos.join(', ')}. Desactivarla puede ser mejor.` : ''))) return;
         paso.opciones.splice(i, 1); render();
       } }, 'Eliminar')),
     h('div', { class: 'fila' },
@@ -453,9 +474,9 @@ function vistaTextos() {
     h('p', { class: 'ayuda' }, 'Todo lo que lee el cliente en botones, títulos y avisos. Podés agregar textos nuevos para usar en la web.'),
     Object.keys(cat.textos).map(k => h('div', { class: 'fila', style: 'grid-template-columns: 1fr auto; align-items:end' },
       campo(`${DESCRIPCION_TEXTOS[k] || k} · ${k}`, cat.textos, k, { tipo: cat.textos[k].length > 60 ? 'textarea' : 'text' }),
-      h('button', { class: 'btn mini peligro', onclick: () => { if (confirm(`¿Quitar el texto "${k}"?`)) { delete cat.textos[k]; render(); } } }, 'Quitar'))),
-    h('button', { class: 'btn', onclick: () => {
-      const k = prompt('Clave del nuevo texto (ej. boton_whatsapp)');
+      h('button', { class: 'btn mini peligro', onclick: async () => { if (await confirmar(`¿Quitar el texto "${k}"?`)) { delete cat.textos[k]; render(); } } }, 'Quitar'))),
+    h('button', { class: 'btn', onclick: async () => {
+      const k = await preguntar('Clave del nuevo texto (ej. boton_whatsapp)');
       if (!k) return;
       cat.textos[slug(k)] = ''; render();
     } }, '+ Agregar texto'));
@@ -525,8 +546,8 @@ function vistaHistorial() {
             const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' })), download: v.archivo }); a.click();
           } }, 'Descargar'), ' ',
           h('button', { class: 'btn mini', onclick: async () => {
-            if (hayCambios() && !confirm('Tenés cambios sin publicar que se van a perder. ¿Seguir?')) return;
-            if (!confirm(`¿Volver a la versión ${v.version}? Los clientes la verán de inmediato.`)) return;
+            if (hayCambios() && !await confirmar('Tenés cambios sin publicar que se van a perder. ¿Seguir?')) return;
+            if (!await confirmar(`¿Volver a la versión ${v.version}? Los clientes la verán de inmediato.`)) return;
             try { const r = await api('POST', `/api/admin/historial/${v.archivo}/restaurar`); cat = r; original = JSON.stringify(r); render(); mensaje('ok', `Restaurada. Ahora es la versión ${r.version}.`); }
             catch (e) { mensaje('error', e.message, e.datos && e.datos.errores); }
           } }, 'Restaurar')))))) : h('p', { class: 'ayuda' }, 'Todavía no hay versiones anteriores.'));
