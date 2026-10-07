@@ -1,0 +1,16 @@
+{
+  "name": "domo-configurador-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend del configurador de domos DOMO BAIRES: catálogo editable, cotizador y panel de administración.",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js",
+    "validar": "node scripts/validar-catalogo.js"
+  },
+  "license": "UNLICENSED"
+}
