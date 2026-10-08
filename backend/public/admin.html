@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOMO · Panel de opciones</title>
+<style>
+  :root {
+    --azul: #1d1b5e; --acento: #4f46e5; --acento-suave: #eef0ff; --borde: #dfe2ee;
+    --texto: #1f2333; --gris: #6b7085; --fondo: #f4f5fa; --rojo: #c62828; --verde: #2e7d32;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--texto); background: var(--fondo); font-size: 14px; }
+  header { background: #fff; border-bottom: 1px solid var(--borde); padding: 10px 20px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 16px; margin: 0 12px 0 0; color: var(--azul); }
+  nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  nav button { border: none; background: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; color: var(--gris); font-weight: 600; }
+  nav button.activo { background: var(--acento-suave); color: var(--acento); }
+  .espacio { flex: 1; }
+  button.btn { border: 1px solid var(--borde); background: #fff; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; color: var(--texto); font-size: 13px; }
+  button.btn:hover { border-color: var(--acento); }
+  button.primario { background: var(--acento); border-color: var(--acento); color: #fff; }
+  button.primario:disabled { opacity: .45; cursor: default; }
+  button.peligro { color: var(--rojo); }
+  button.mini { padding: 3px 8px; font-size: 12px; }
+  main { max-width: 1280px; margin: 0 auto; padding: 20px; }
+  .tarjeta { background: #fff; border: 1px solid var(--borde); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  .grilla-pasos { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 800px) { .grilla-pasos { grid-template-columns: 1fr; } }
+  .lista-pasos { list-style: none; margin: 0; padding: 0; }
+  .lista-pasos li { display: flex; align-items: center; gap: 6px; padding: 8px; border-radius: 6px; cursor: pointer; }
+  .lista-pasos li:hover { background: var(--fondo); }
+  .lista-pasos li.sel { background: var(--acento-suave); color: var(--acento); font-weight: 600; }
+  .lista-pasos li.inactivo span.nombre { text-decoration: line-through; opacity: .6; }
+  .lista-pasos .nombre { flex: 1; }
+  label.campo { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--gris); }
+  input, select, textarea { font: inherit; padding: 6px 8px; border: 1px solid var(--borde); border-radius: 6px; color: var(--texto); background: #fff; min-width: 0; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--acento-suave); border-color: var(--acento); }
+  input[type=checkbox] { width: 16px; height: 16px; }
+  input[type=color] { padding: 0; height: 32px; width: 48px; }
+  .fila { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 10px; }
+  .check { display: flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 600; }
+  .opcion { border: 1px solid var(--borde); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+  .opcion.inactiva { background: #fafafa; opacity: .75; }
+  .opcion-cab { display: flex; gap: 6px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .opcion-cab strong { flex: 1; font-size: 15px; }
+  .id { font-family: ui-monospace, monospace; font-size: 12px; color: var(--gris); background: var(--fondo); padding: 2px 6px; border-radius: 4px; }
+  details { margin-top: 6px; }
+  summary { cursor: pointer; font-weight: 600; color: var(--acento); font-size: 13px; }
+  .chips { display: flex; gap: 10px; flex-wrap: wrap; }
+  .aviso { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; }
+  .aviso.error { background: #ffebee; color: var(--rojo); }
+  .aviso.ok { background: #e8f5e9; color: var(--verde); }
+  .aviso ul { margin: 6px 0 0; padding-left: 20px; }
+  .sin-guardar { color: #b45309; font-weight: 600; font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--borde); vertical-align: top; font-size: 13px; }
+  th { color: var(--gris); font-size: 12px; text-transform: uppercase; }
+  .ayuda { color: var(--gris); font-size: 12px; margin: 4px 0 10px; }
+  #login { max-width: 380px; margin: 80px auto; }
+  .dialogo-fondo { position: fixed; inset: 0; background: rgba(20,20,40,.35); display: grid; place-items: center; z-index: 20; padding: 16px; }
+  .dialogo { width: min(440px, 100%); margin: 0; }
+  h2 { font-size: 18px; margin: 0 0 4px; color: var(--azul); }
+  h3 { font-size: 14px; margin: 16px 0 8px; }
+</style>
+</head>
+<body>
+<div id="login" class="tarjeta" hidden>
+  <h2>Panel de opciones DOMO</h2>
+  <p class="ayuda">Ingresá la clave de administración (variable ADMIN_TOKEN del servidor).</p>
+  <form id="form-login">
+    <label class="campo">Clave <input type="password" id="clave" autocomplete="current-password" required></label>
+    <p id="login-error" class="aviso error" hidden></p>
+    <button class="btn primario" style="margin-top:10px">Entrar</button>
+  </form>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <h1>DOMO · Panel de opciones</h1>
+    <nav id="tabs"></nav>
+    <span class="espacio"></span>
+    <span id="estado-guardado"></span>
+    <button class="btn" id="btn-descartar">Descartar cambios</button>
+    <button class="btn primario" id="btn-guardar">Guardar y publicar</button>
+  </header>
+  <main>
+    <div id="mensajes"></div>
+    <div id="vista"></div>
+  </main>
+</div>
+
+<script>
+'use strict';
+
+// ---------- utilidades ----------
+const $ = sel => document.querySelector(sel);
+function h(tag, attrs, ...hijos) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'class') el.className = v;
+    else if (k === 'value') el.value = v;
+    else if (k === 'checked') el.checked = !!v;
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const hijo of hijos.flat()) {
+    if (hijo === null || hijo === undefined || hijo === false) continue;
+    el.append(hijo instanceof Node ? hijo : document.createTextNode(String(hijo)));
+  }
+  return el;
+}
+const store = {
+  get(k) { try { return sessionStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { sessionStorage.setItem(k, v); } catch {} },
+  del(k) { try { sessionStorage.removeItem(k); } catch {} },
+};
+// Diálogos propios (en lugar de prompt/confirm del navegador, que algunos
+// entornos bloquean). Devuelven una promesa.
+function dialogo({ texto, conCampo = false, valor = '', soloAceptar = false }) {
+  return new Promise(resolve => {
+    const input = conCampo ? h('input', { id: 'dialogo-campo', value: valor, style: 'width:100%' }) : null;
+    const cerrar = r => { fondo.remove(); resolve(r); };
+    const aceptar = h('button', { class: 'btn primario', onclick: () => cerrar(conCampo ? input.value.trim() || null : true) }, 'Aceptar');
+    const fondo = h('div', { class: 'dialogo-fondo', onkeydown: e => { if (e.key === 'Escape') cerrar(conCampo ? null : false); if (e.key === 'Enter' && conCampo) aceptar.click(); } },
+      h('div', { class: 'tarjeta dialogo', role: 'dialog', 'aria-modal': 'true' },
+        h('p', { style: 'white-space:pre-line;margin-top:0' }, texto), input,
+        h('div', { class: 'chips', style: 'justify-content:flex-end;margin-top:12px' },
+          soloAceptar ? null : h('button', { class: 'btn', onclick: () => cerrar(conCampo ? null : false) }, 'Cancelar'), aceptar)));
+    document.body.append(fondo);
+    (input || aceptar).focus();
+  });
+}
+const preguntar = (texto, valor) => dialogo({ texto, conCampo: true, valor });
+const confirmar = texto => dialogo({ texto });
+const avisar = texto => dialogo({ texto, soloAceptar: true });
+const slug = t => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 50) || 'opcion';
+
+const MODOS = {
+  fijo: 'Precio fijo (por unidad)',
+  por_m2_piso: 'Por m² de piso',
+  por_m2_cubierta: 'Por m² de cubierta',
+  multiplicador: 'Multiplicador del total (ej. 1.15 = +15%)',
+  porcentaje: 'Porcentaje del total (ej. 12 = 12%)',
+  consultar: 'A consultar (no suma al total)',
+};
+const TIPOS = { unica: 'Elegir una opción', multiple: 'Elegir varias opciones', cantidades: 'Cantidad por opción (+ / −)' };
+const ESTADOS = ['nuevo', 'contactado', 'presupuestado', 'ganado', 'perdido'];
+
+// ---------- estado ----------
+let token = store.get('domo_admin_token');
+let cat = null;          // copia de trabajo
+let original = '';       // JSON publicado, para detectar cambios
+let tab = 'opciones';
+let pasoSel = 0;
+
+async function api(metodo, ruta, cuerpo) {
+  const r = await fetch(ruta, {
+    method: metodo,
+    headers: { 'Authorization': 'Bearer ' + token, ...(cuerpo !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+    body: cuerpo !== undefined ? JSON.stringify(cuerpo) : undefined,
+  });
+  if (r.status === 401) { salir(); throw new Error('Clave incorrecta'); }
+  const tipo = r.headers.get('Content-Type') || '';
+  const datos = tipo.includes('json') ? await r.json() : await r.blob();
+  if (!r.ok) { const e = new Error(datos.error || 'Error'); e.datos = datos; throw e; }
+  return datos;
+}
+
+function mensaje(tipo, texto, lista) {
+  const cont = $('#mensajes');
+  cont.replaceChildren(h('div', { class: 'aviso ' + tipo }, texto, lista && lista.length ? h('ul', {}, lista.map(l => h('li', {}, l))) : null));
+  if (tipo === 'ok') setTimeout(() => cont.replaceChildren(), 4000);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function hayCambios() { return cat && JSON.stringify(cat) !== original; }
+function marcar() {
+  const cambios = hayCambios();
+  $('#btn-guardar').disabled = !cambios;
+  $('#btn-descartar').hidden = !cambios;
+  $('#estado-guardado').replaceChildren(cambios ? h('span', { class: 'sin-guardar' }, '● Cambios sin publicar') : h('span', { class: 'ayuda' }, `Versión ${cat.version} publicada`));
+}
+window.addEventListener('beforeunload', e => { if (hayCambios()) { e.preventDefault(); e.returnValue = ''; } });
+
+// ---------- login ----------
+function salir() { token = null; store.del('domo_admin_token'); $('#app').hidden = true; $('#login').hidden = false; }
+$('#form-login').addEventListener('submit', async e => {
+  e.preventDefault();
+  token = $('#clave').value;
+  try { await cargar(); store.set('domo_admin_token', token); }
+  catch (err) { const p = $('#login-error'); p.textContent = err.message; p.hidden = false; }
+});
+
+async function cargar() {
+  const datos = await api('GET', '/api/admin/catalogo');
+  cat = datos; original = JSON.stringify(datos);
+  $('#login').hidden = true; $('#app').hidden = false;
+  pasoSel = Math.min(pasoSel, cat.pasos.length - 1);
+  render();
+}
+
+$('#btn-descartar').addEventListener('click', async () => {
+  if (!await confirmar('¿Descartar todos los cambios sin publicar?')) return;
+  cat = JSON.parse(original); render();
+});
+
+$('#btn-guardar').addEventListener('click', async () => {
+  try {
+    const v = await api('POST', '/api/admin/catalogo/validar', cat);
+    if (!v.ok) return mensaje('error', 'Hay que corregir esto antes de publicar:', v.errores);
+    const guardado = await api('PUT', '/api/admin/catalogo', cat);
+    cat = guardado; original = JSON.stringify(guardado);
+    render();
+    mensaje('ok', `Publicado. Versión ${guardado.version}. Los clientes ya ven los cambios.`);
+  } catch (e) {
+    mensaje('error', e.message, e.datos && e.datos.errores);
+  }
+});
+
+// ---------- render general ----------
+const TABS = { opciones: 'Pasos y opciones', textos: 'Textos y botones', ajustes: 'Ajustes generales', pedidos: 'Pedidos', historial: 'Historial', avanzado: 'Importar / exportar' };
+function render() {
+  $('#tabs').replaceChildren(...Object.entries(TABS).map(([k, t]) => h('button', { class: k === tab ? 'activo' : '', onclick: () => { tab = k; render(); } }, t)));
+  const vistas = { opciones: vistaOpciones, textos: vistaTextos, ajustes: vistaAjustes, pedidos: vistaPedidos, historial: vistaHistorial, avanzado: vistaAvanzado };
+  $('#vista').replaceChildren(vistas[tab]());
+  marcar();
+}
+
+// Campo enlazado a una propiedad del objeto: al editar, actualiza el catálogo.
+function campo(etiqueta, obj, clave, { tipo = 'text', opciones, ayuda, alCambiar, paso, vacioComoBorrar, porDefecto = false } = {}) {
+  let input;
+  const actualizar = valor => {
+    if (vacioComoBorrar && (valor === '' || valor === null || Number.isNaN(valor))) delete obj[clave];
+    else obj[clave] = valor;
+    marcar();
+    if (alCambiar) alCambiar(valor);
+  };
+  if (tipo === 'checkbox') {
+    input = h('input', { type: 'checkbox', checked: obj[clave] ?? porDefecto, onchange: e => actualizar(e.target.checked) });
+    return h('label', { class: 'check', title: ayuda }, input, etiqueta);
+  }
+  if (opciones) {
+    input = h('select', { onchange: e => actualizar(e.target.value) },
+      Object.entries(opciones).map(([v, t]) => h('option', { value: v }, t)));
+    input.value = obj[clave] ?? '';
+  } else if (tipo === 'textarea') {
+    input = h('textarea', { rows: 2, value: obj[clave] ?? '', oninput: e => actualizar(e.target.value) });
+  } else {
+    input = h('input', {
+      type: tipo, step: paso || (tipo === 'number' ? 'any' : undefined), value: obj[clave] ?? '',
+      oninput: e => actualizar(tipo === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value),
+    });
+  }
+  return h('label', { class: 'campo' }, etiqueta, input, ayuda ? h('span', { class: 'ayuda', style: 'margin:0;font-weight:400' }, ayuda) : null);
+}
+
+function mover(lista, i, d) {
+  const j = i + d;
+  if (j < 0 || j >= lista.length) return false;
+  [lista[i], lista[j]] = [lista[j], lista[i]];
+  return true;
+}
+
+function idsLineas() {
+  const p = cat.pasos.find(p => p.id === cat.ajustes.paso_linea);
+  return p ? p.opciones.map(o => ({ id: o.id, nombre: o.nombre })) : [];
+}
+function todasLasOpciones() {
+  return cat.pasos.flatMap(p => p.opciones.map(o => ({ id: o.id, nombre: `${o.nombre} (${p.titulo})` })));
+}
+function idUnico(base) {
+  const usados = new Set(cat.pasos.flatMap(p => [p.id, ...p.opciones.map(o => o.id)]));
+  let id = base, n = 2;
+  while (usados.has(id)) id = `${base}_${n++}`;
+  return id;
+}
+
+// ---------- pasos y opciones ----------
+function vistaOpciones() {
+  cat.pasos.forEach((p, i) => { p.orden = i + 1; });
+  const paso = cat.pasos[pasoSel];
+  const lista = h('ul', { class: 'lista-pasos' }, cat.pasos.map((p, i) => h('li', {
+    class: (i === pasoSel ? 'sel ' : '') + (p.activo === false ? 'inactivo' : ''),
+    onclick: () => { pasoSel = i; render(); },
+  }, h('span', {}, `${i + 1}.`), h('span', { class: 'nombre' }, p.titulo || p.id),
+    h('button', { class: 'btn mini', title: 'Subir', onclick: e => { e.stopPropagation(); if (mover(cat.pasos, i, -1)) { pasoSel = i - 1; render(); } } }, '↑'),
+    h('button', { class: 'btn mini', title: 'Bajar', onclick: e => { e.stopPropagation(); if (mover(cat.pasos, i, 1)) { pasoSel = i + 1; render(); } } }, '↓'))));
+
+  const agregarPaso = h('button', { class: 'btn', style: 'margin-top:10px;width:100%', onclick: async () => {
+    const titulo = await preguntar('Nombre del nuevo paso (ej. "Calefacción")');
+    if (!titulo) return;
+    cat.pasos.push({ id: idUnico(slug(titulo)), titulo, descripcion: '', tipo: 'unica', requerido: false, activo: true, orden: cat.pasos.length + 1, opciones: [] });
+    pasoSel = cat.pasos.length - 1; render();
+  } }, '+ Agregar paso');
+
+  return h('div', { class: 'grilla-pasos' },
+    h('div', { class: 'tarjeta' }, h('h3', { style: 'margin-top:0' }, 'Pasos del configurador'),
+      h('p', { class: 'ayuda' }, 'Cada paso es una sección que ve el cliente. El orden de la lista es el orden en pantalla.'), lista, agregarPaso),
+    paso ? editorPaso(paso) : h('div', { class: 'tarjeta' }, 'No hay pasos.'));
+}
+
+function editorPaso(paso) {
+  const esLinea = paso.id === cat.ajustes.paso_linea;
+  const esTamano = paso.id === cat.ajustes.paso_tamano;
+  const cab = h('div', { class: 'tarjeta' },
+    h('div', { class: 'opcion-cab' }, h('h2', { style: 'flex:1' }, paso.titulo || paso.id), h('span', { class: 'id' }, paso.id),
+      h('button', { class: 'btn peligro', onclick: async () => {
+        if (esLinea || esTamano) return avisar('Este paso define la línea o el tamaño. Cambialo primero en "Ajustes generales".');
+        if (!await confirmar(`¿Eliminar el paso "${paso.titulo}" y todas sus opciones?`)) return;
+        cat.pasos.splice(pasoSel, 1); pasoSel = Math.max(0, pasoSel - 1); render();
+      } }, 'Eliminar paso')),
+    esLinea ? h('p', { class: 'ayuda' }, 'Este paso define la LÍNEA. Otras opciones pueden limitarse a ciertas líneas.') : null,
+    esTamano ? h('p', { class: 'ayuda' }, 'Este paso define el TAMAÑO. Cada opción necesita su diámetro: con él se calculan los m² de piso y cubierta.') : null,
+    h('div', { class: 'fila' },
+      campo('Título', paso, 'titulo', { alCambiar: () => { const li = document.querySelector('.lista-pasos li.sel .nombre'); if (li) li.textContent = paso.titulo; } }),
+      campo('Tipo de selección', paso, 'tipo', { opciones: TIPOS, alCambiar: () => { delete paso.predeterminada; render(); } })),
+    h('div', { class: 'fila' }, campo('Descripción (opcional)', paso, 'descripcion', { tipo: 'textarea' })),
+    h('div', { class: 'chips' },
+      campo('Visible', paso, 'activo', { tipo: 'checkbox', porDefecto: true, alCambiar: render }),
+      campo('Obligatorio', paso, 'requerido', { tipo: 'checkbox' }),
+      esLinea ? null : campo('Aplica recargo de línea', paso, 'aplica_multiplicador', { tipo: 'checkbox', porDefecto: true, ayuda: 'Si se destilda, el multiplicador de la línea no afecta a este paso (útil para equipos de terceros).' })),
+    !esLinea && idsLineas().length ? h('div', {}, h('h3', {}, 'Mostrar este paso solo en estas líneas (ninguna = todas)'),
+      h('div', { class: 'chips' }, idsLineas().map(l => h('label', { class: 'check', style: 'font-weight:400' },
+        h('input', { type: 'checkbox', checked: (paso.solo_lineas || []).includes(l.id), onchange: e => {
+          const lista = (paso.solo_lineas || []).filter(x => x !== l.id);
+          if (e.target.checked) lista.push(l.id);
+          if (lista.length) paso.solo_lineas = lista; else delete paso.solo_lineas;
+          marcar();
+        } }), l.nombre)))) : null,
+    paso.tipo === 'cantidades' ? limitesCantidades(paso) : null,
+    predeterminada(paso));
+
+  const opciones = h('div', { class: 'tarjeta' },
+    h('h3', { style: 'margin-top:0' }, `Opciones (${paso.opciones.length})`),
+    paso.opciones.map((op, i) => editorOpcion(paso, op, i)),
+    h('button', { class: 'btn', onclick: async () => {
+      const nombre = await preguntar('Nombre de la nueva opción');
+      if (!nombre) return;
+      const nueva = { id: idUnico(slug(nombre)), nombre, descripcion: '', precio: { modo: 'fijo', valor: 0 }, activo: true };
+      if (esTamano) nueva.diametro_m = Number(await preguntar('Diámetro en metros', '6')) || 6;
+      paso.opciones.push(nueva); render();
+    } }, '+ Agregar opción'));
+  return h('div', {}, cab, opciones);
+}
+
+function limitesCantidades(paso) {
+  const lim = paso.limites_por_linea || {};
+  return h('div', {},
+    h('h3', {}, 'Cantidad total permitida'),
+    h('div', { class: 'fila' },
+      campo('Mínimo total', paso, 'min_total', { tipo: 'number', paso: 1, vacioComoBorrar: true }),
+      campo('Máximo total', paso, 'max_total', { tipo: 'number', paso: 1, vacioComoBorrar: true })),
+    idsLineas().length ? h('details', {}, h('summary', {}, 'Máximo distinto por línea'),
+      h('div', { class: 'fila', style: 'margin-top:8px' }, idsLineas().map(l => {
+        const obj = lim[l.id] || {};
+        return h('label', { class: 'campo' }, `Máximo en ${l.nombre}`, h('input', { type: 'number', step: 1, min: 0, value: obj.max_total ?? '', placeholder: 'igual al general', oninput: e => {
+          if (e.target.value === '') { delete obj.max_total; } else { obj.max_total = Number(e.target.value); }
+          if (Object.keys(obj).length) lim[l.id] = obj; else delete lim[l.id];
+          if (Object.keys(lim).length) paso.limites_por_linea = lim; else delete paso.limites_por_linea;
+          marcar();
+        } }));
+      }))) : null);
+}
+
+function predeterminada(paso) {
+  const ops = paso.opciones;
+  if (paso.tipo === 'unica') {
+    const opcionesSel = { '': '— ninguna —', ...Object.fromEntries(ops.map(o => [o.id, o.nombre])) };
+    return h('div', { class: 'fila', style: 'margin-top:10px' }, campo('Opción preseleccionada', paso, 'predeterminada', { opciones: opcionesSel, vacioComoBorrar: true }));
+  }
+  if (paso.tipo === 'multiple') {
+    const pred = Array.isArray(paso.predeterminada) ? paso.predeterminada : [];
+    return h('div', {}, h('h3', {}, 'Preseleccionadas'), h('div', { class: 'chips' }, ops.map(o => h('label', { class: 'check' },
+      h('input', { type: 'checkbox', checked: pred.includes(o.id), onchange: e => {
+        const i = pred.indexOf(o.id);
+        if (e.target.checked && i < 0) pred.push(o.id); else if (!e.target.checked && i >= 0) pred.splice(i, 1);
+        paso.predeterminada = pred;
+        marcar();
+      } }), o.nombre))));
+  }
+  const pred = paso.predeterminada && typeof paso.predeterminada === 'object' && !Array.isArray(paso.predeterminada) ? paso.predeterminada : {};
+  return h('div', {}, h('h3', {}, 'Cantidades iniciales'), h('div', { class: 'fila' }, ops.map(o => h('label', { class: 'campo' }, o.nombre,
+    h('input', { type: 'number', min: 0, step: 1, value: pred[o.id] ?? 0, oninput: e => {
+      const n = parseInt(e.target.value, 10);
+      if (n > 0) pred[o.id] = n; else delete pred[o.id];
+      paso.predeterminada = pred;
+      marcar();
+    } })))));
+}
+
+function editorOpcion(paso, op, i) {
+  op.precio = op.precio || { modo: 'fijo', valor: 0 };
+  const esTamano = paso.id === cat.ajustes.paso_tamano;
+  const reglas = op.reglas || {};
+  const limpiarReglas = () => {
+    for (const k of Object.keys(reglas)) if (reglas[k] === undefined || (Array.isArray(reglas[k]) && !reglas[k].length)) delete reglas[k];
+    if (Object.keys(reglas).length) op.reglas = reglas; else delete op.reglas;
+    marcar();
+  };
+
+  const listaChecks = (clave, candidatos) => h('div', { class: 'chips' }, candidatos.map(c => h('label', { class: 'check', style: 'font-weight:400' },
+    h('input', { type: 'checkbox', checked: (reglas[clave] || []).includes(c.id), onchange: e => {
+      const l = reglas[clave] || [];
+      reglas[clave] = e.target.checked ? [...new Set([...l, c.id])] : l.filter(x => x !== c.id);
+      limpiarReglas();
+    } }), c.nombre)));
+
+  const selectorOpciones = (clave, titulo) => {
+    const candidatos = todasLasOpciones().filter(c => c.id !== op.id);
+    const sel = h('select', { multiple: true, size: 5, style: 'width:100%', onchange: e => {
+      reglas[clave] = [...e.target.selectedOptions].map(o => o.value); limpiarReglas();
+    } }, candidatos.map(c => h('option', { value: c.id, selected: (reglas[clave] || []).includes(c.id) }, c.nombre)));
+    return h('label', { class: 'campo' }, titulo, sel, h('span', { class: 'ayuda', style: 'margin:0;font-weight:400' }, 'Ctrl/Cmd + clic para elegir varias'));
+  };
+
+  const regla = (etiqueta, clave) => h('label', { class: 'campo' }, etiqueta, h('input', { type: 'number', min: 0, step: 'any', value: reglas[clave] ?? '', oninput: e => {
+    reglas[clave] = e.target.value === '' ? undefined : Number(e.target.value); limpiarReglas();
+  } }));
+
+  const precioPorLinea = () => {
+    const vpl = op.precio.valor_por_linea || {};
+    return h('div', { class: 'fila' }, idsLineas().map(l => h('label', { class: 'campo' }, `Precio en ${l.nombre}`,
+      h('input', { type: 'number', step: 'any', min: 0, value: vpl[l.id] ?? '', placeholder: 'igual al general', oninput: e => {
+        if (e.target.value === '') delete vpl[l.id]; else vpl[l.id] = Number(e.target.value);
+        if (Object.keys(vpl).length) op.precio.valor_por_linea = vpl; else delete op.precio.valor_por_linea;
+        marcar();
+      } }))));
+  };
+
+  const cantReglas = Object.keys(op.reglas || {}).length;
+  return h('div', { class: 'opcion' + (op.activo === false ? ' inactiva' : '') },
+    h('div', { class: 'opcion-cab' },
+      h('strong', {}, op.nombre), h('span', { class: 'id', title: 'Identificador interno (no cambia)' }, op.id),
+      h('button', { class: 'btn mini', title: 'Subir', onclick: () => { if (mover(paso.opciones, i, -1)) render(); } }, '↑'),
+      h('button', { class: 'btn mini', title: 'Bajar', onclick: () => { if (mover(paso.opciones, i, 1)) render(); } }, '↓'),
+      h('button', { class: 'btn mini', onclick: () => {
+        const copia = structuredClone(op); copia.id = idUnico(op.id + '_copia'); copia.nombre = op.nombre + ' (copia)';
+        paso.opciones.splice(i + 1, 0, copia); render();
+      } }, 'Duplicar'),
+      h('button', { class: 'btn mini peligro', onclick: async () => {
+        const usos = cat.pasos.flatMap(p => p.opciones.filter(o => o.reglas && Object.values(o.reglas).some(v => Array.isArray(v) && v.includes(op.id))).map(o => o.nombre));
+        if (!await confirmar(`¿Eliminar "${op.nombre}"?` + (usos.length ? `\n\nOjo: la usan las reglas de: ${usos.join(', ')}. Desactivarla puede ser mejor.` : ''))) return;
+        paso.opciones.splice(i, 1); render();
+      } }, 'Eliminar')),
+    h('div', { class: 'fila' },
+      campo('Nombre', op, 'nombre'),
+      campo('Modo de precio', op.precio, 'modo', { opciones: MODOS }),
+      campo(op.precio.modo === 'porcentaje' ? 'Porcentaje' : op.precio.modo === 'multiplicador' ? 'Multiplicador' : `Precio (${cat.ajustes.moneda})`, op.precio, 'valor', { tipo: 'number' }),
+      esTamano ? campo('Diámetro (m)', op, 'diametro_m', { tipo: 'number' }) : null,
+      paso.tipo === 'cantidades' ? campo('Cantidad máxima', op, 'max', { tipo: 'number', paso: 1, vacioComoBorrar: true }) : null),
+    h('div', { class: 'fila' }, campo('Descripción', op, 'descripcion', { tipo: 'textarea', vacioComoBorrar: true })),
+    h('div', { class: 'chips' },
+      campo('Visible para clientes', op, 'activo', { tipo: 'checkbox', porDefecto: true, alCambiar: render }),
+      h('label', { class: 'check' }, 'Color', h('input', { type: 'color', value: op.color || '#ffffff', oninput: e => { op.color = e.target.value; marcar(); } }),
+        op.color ? h('button', { class: 'btn mini', onclick: () => { delete op.color; render(); } }, 'quitar') : null),
+      selectorImagen(op)),
+    paso.id === cat.ajustes.paso_linea ? h('div', { class: 'fila' }, campo('Superficie de base mínima (m²)', op, 'area_piso_min_m2', { tipo: 'number', vacioComoBorrar: true, ayuda: 'Los modelos de esta línea deben superar esta superficie.' })) : null,
+    !esTamano && paso.id !== cat.ajustes.paso_linea ? editorGeometria(op) : null,
+    esTamano ? h('details', { open: !!op.forma_3d }, h('summary', {}, 'Forma en la vista 3D'), editorForma3d(op, 'Forma para este tamaño')) : null,
+    idsLineas().length && paso.id !== cat.ajustes.paso_linea && !['multiplicador', 'consultar'].includes(op.precio.modo)
+      ? h('details', {}, h('summary', {}, 'Precio distinto según la línea'), precioPorLinea()) : null,
+    h('details', {}, h('summary', {}, `Reglas de disponibilidad${cantReglas ? ` (${cantReglas})` : ''}`),
+      h('p', { class: 'ayuda' }, 'Si no se cumple una regla, el botón aparece deshabilitado con el motivo.'),
+      paso.id !== cat.ajustes.paso_linea && idsLineas().length ? h('div', {}, h('h3', {}, 'Solo en estas líneas (ninguna = todas)'), listaChecks('solo_lineas', idsLineas())) : null,
+      !esTamano ? h('div', { class: 'fila', style: 'margin-top:10px' }, regla('Diámetro mínimo (m)', 'min_diametro'), regla('Diámetro máximo (m)', 'max_diametro')) : null,
+      h('div', { class: 'fila' },
+        selectorOpciones('requiere', 'Requiere TODAS estas'),
+        selectorOpciones('requiere_alguno', 'Requiere ALGUNA de estas'),
+        selectorOpciones('excluye', 'No combina con'),
+        selectorOpciones('solo_con', 'Mostrar solo si se eligió'))));
+}
+
+// Medidas propias de un modelo (ej. los Dormi): reemplazan las calculadas por diámetro.
+function editorGeometria(op) {
+  const g = op.geometria || {};
+  const campoG = (etiqueta, clave) => h('label', { class: 'campo' }, etiqueta, h('input', { type: 'number', step: 'any', min: 0, value: g[clave] ?? '', oninput: e => {
+    if (e.target.value === '') delete g[clave]; else g[clave] = Number(e.target.value);
+    if (Object.keys(g).length) op.geometria = g; else delete op.geometria;
+    marcar();
+  } }));
+  return h('details', { open: !!op.geometria }, h('summary', {}, 'Medidas propias del modelo'),
+    h('p', { class: 'ayuda' }, 'Completalo solo si esta opción es un modelo con forma propia. Con estas medidas se calculan los precios por m².'),
+    h('div', { class: 'fila' }, campoG('Superficie de base (m²)', 'area_piso_m2'), campoG('Superficie de cubierta (m²)', 'area_cubierta_m2'), campoG('Altura (m)', 'altura_m')),
+    editorForma3d(op, 'Forma en la vista 3D de este modelo'));
+}
+
+// Forma de la estructura en la vista 3D que ve el cliente.
+function editorForma3d(obj, titulo, { general = false } = {}) {
+  const f = obj.forma_3d || {};
+  const guardar = () => { if (Object.keys(f).length) obj.forma_3d = f; else delete obj.forma_3d; marcar(); };
+  const sel = (etiqueta, clave, opciones, ayuda) => {
+    const s = h('select', { onchange: e => { if (e.target.value === '') delete f[clave]; else f[clave] = clave === 'poliedro' ? e.target.value : Number(e.target.value); guardar(); } },
+      Object.entries(opciones).map(([v, t]) => h('option', { value: v }, t)));
+    s.value = f[clave] ?? '';
+    return h('label', { class: 'campo' }, etiqueta, s, ayuda ? h('span', { class: 'ayuda', style: 'margin:0;font-weight:400' }, ayuda) : null);
+  };
+  const igual = general ? {} : { '': 'Igual que el resto' };
+  return h('div', {}, h('h3', {}, titulo),
+    h('div', { class: 'fila' },
+      sel('Figura base', 'poliedro', { ...igual, icosaedro: 'Icosaedro (domo clásico)', octaedro: 'Octaedro (más cuadrado)' }),
+      sel('Frecuencia', 'frecuencia', { ...igual, 1: '1V', 2: '2V', 3: '3V', 4: '4V', 5: '5V', 6: '6V' }, 'Más frecuencia = más barras y más redondo.'),
+      sel('Porción de esfera', 'porcion', { ...(general ? { '': 'La de arriba' } : igual), 0.375: '3/8', 0.5: '1/2', 0.625: '5/8', 0.75: '3/4' })));
+}
+
+// Subir una foto: se achica en el navegador (máx. 900 px) y se guarda dentro del catálogo.
+function selectorImagen(op) {
+  const subir = h('input', { type: 'file', accept: 'image/*', hidden: true, onchange: async e => {
+    const archivo = e.target.files[0];
+    if (!archivo) return;
+    try { op.imagen = await achicarImagen(archivo, 900); render(); }
+    catch { mensaje('error', 'No se pudo leer esa imagen. Probá con un JPG o PNG.'); }
+  } });
+  return h('div', { class: 'check', style: 'flex-wrap:wrap' },
+    op.imagen ? h('img', { src: op.imagen, alt: '', style: 'height:56px;border-radius:6px;border:1px solid var(--borde)' }) : null,
+    h('label', { class: 'btn mini' }, op.imagen ? 'Cambiar foto' : 'Subir foto', subir),
+    op.imagen ? h('button', { class: 'btn mini', onclick: () => { delete op.imagen; render(); } }, 'Quitar foto') : null);
+}
+
+function achicarImagen(archivo, max) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const escala = Math.min(1, max / Math.max(img.width, img.height));
+      const lienzo = document.createElement('canvas');
+      lienzo.width = Math.round(img.width * escala);
+      lienzo.height = Math.round(img.height * escala);
+      lienzo.getContext('2d').drawImage(img, 0, 0, lienzo.width, lienzo.height);
+      URL.revokeObjectURL(img.src);
+      resolve(lienzo.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(archivo);
+  });
+}
+
+// ---------- textos ----------
+const DESCRIPCION_TEXTOS = {
+  titulo: 'Título principal', subtitulo: 'Subtítulo', boton_cotizar: 'Botón "ver presupuesto"', boton_enviar: 'Botón para enviar el pedido',
+  boton_reiniciar: 'Botón para reiniciar', boton_mas: 'Botón sumar cantidad', boton_menos: 'Botón restar cantidad',
+  etiqueta_total: 'Etiqueta del total', etiqueta_subtotal: 'Etiqueta del subtotal', etiqueta_iva: 'Etiqueta del IVA',
+  nota_precios: 'Nota al pie de precios', nota_tamanos: 'Nota bajo los tamaños', mensaje_enviado: 'Mensaje al enviar el pedido',
+};
+function vistaTextos() {
+  cat.textos = cat.textos || {};
+  return h('div', { class: 'tarjeta' },
+    h('h2', {}, 'Textos y botones'),
+    h('p', { class: 'ayuda' }, 'Todo lo que lee el cliente en botones, títulos y avisos. Podés agregar textos nuevos para usar en la web.'),
+    Object.keys(cat.textos).map(k => h('div', { class: 'fila', style: 'grid-template-columns: 1fr auto; align-items:end' },
+      campo(`${DESCRIPCION_TEXTOS[k] || k} · ${k}`, cat.textos, k, { tipo: cat.textos[k].length > 60 ? 'textarea' : 'text' }),
+      h('button', { class: 'btn mini peligro', onclick: async () => { if (await confirmar(`¿Quitar el texto "${k}"?`)) { delete cat.textos[k]; render(); } } }, 'Quitar'))),
+    h('button', { class: 'btn', onclick: async () => {
+      const k = await preguntar('Clave del nuevo texto (ej. boton_whatsapp)');
+      if (!k) return;
+      cat.textos[slug(k)] = ''; render();
+    } }, '+ Agregar texto'));
+}
+
+// ---------- ajustes ----------
+function vistaAjustes() {
+  const a = cat.ajustes;
+  const unicas = Object.fromEntries(cat.pasos.filter(p => p.tipo === 'unica').map(p => [p.id, p.titulo]));
+  return h('div', { class: 'tarjeta' },
+    h('h2', {}, 'Ajustes generales'),
+    h('div', { class: 'fila' },
+      campo('Empresa', a, 'empresa'),
+      campo('Moneda (código)', a, 'moneda', { ayuda: 'Ej. USD o ARS' }),
+      campo('Símbolo de moneda', a, 'simbolo_moneda', { ayuda: 'Ej. US$ o $' }),
+      campo('IVA (%)', a, 'iva_porcentaje', { tipo: 'number' }),
+      campo('Validez del presupuesto (días)', a, 'validez_dias', { tipo: 'number', paso: 1 })),
+    h('div', { class: 'chips' }, campo('Los precios cargados ya incluyen IVA', a, 'precios_incluyen_iva', { tipo: 'checkbox' })),
+    h('h3', {}, 'Geometría'),
+    h('div', { class: 'fila' },
+      campo('Porción de esfera', a, 'porcion_esfera', { tipo: 'number', ayuda: '0.5 = 1/2, 0.625 = 5/8, 0.75 = 3/4. Se usa para la altura y los m² de cubierta.' }),
+      campo('Paso que define la línea', a, 'paso_linea', { opciones: { '': '— ninguno —', ...unicas }, vacioComoBorrar: true, alCambiar: render }),
+      campo('Paso que define el tamaño', a, 'paso_tamano', { opciones: { '': '— ninguno —', ...unicas }, vacioComoBorrar: true, alCambiar: render })),
+    editorForma3d(a, 'Vista 3D: forma general de los domos', { general: true }));
+}
+
+// ---------- pedidos ----------
+function vistaPedidos() {
+  const cont = h('div', { class: 'tarjeta' }, h('h2', {}, 'Pedidos de presupuesto'), h('p', { class: 'ayuda' }, 'Cargando…'));
+  api('GET', '/api/admin/presupuestos').then(pedidos => {
+    const fmt = (n, p) => n === undefined || n === null ? '' : `${p.cotizacion.simbolo_moneda || ''} ${Number(n).toLocaleString('es-AR', { maximumFractionDigits: 0 })}`;
+    cont.replaceChildren(
+      h('div', { class: 'opcion-cab' }, h('h2', { style: 'flex:1' }, `Pedidos de presupuesto (${pedidos.length})`),
+        h('button', { class: 'btn', onclick: async () => {
+          const blob = await api('GET', '/api/admin/presupuestos.csv');
+          const a = h('a', { href: URL.createObjectURL(blob), download: 'presupuestos.csv' }); a.click(); URL.revokeObjectURL(a.href);
+        } }, 'Descargar Excel (CSV)')),
+      pedidos.length ? h('table', {},
+        h('thead', {}, h('tr', {}, ['Pedido', 'Cliente', 'Configuración', 'Total', 'Estado', 'Notas'].map(t => h('th', {}, t)))),
+        h('tbody', {}, pedidos.map(p => h('tr', {},
+          h('td', {}, h('strong', {}, p.numero), h('br'), new Date(p.creado).toLocaleString('es-AR')),
+          h('td', {}, p.cliente.nombre, h('br'), p.cliente.email, p.cliente.email && p.cliente.telefono ? ' · ' : '', p.cliente.telefono,
+            p.cliente.localidad ? h('div', { class: 'ayuda' }, p.cliente.localidad) : null,
+            p.cliente.comentarios ? h('div', { class: 'ayuda' }, '“' + p.cliente.comentarios + '”') : null),
+          h('td', {}, h('details', {}, h('summary', {}, `${p.cotizacion.items.length} ítems`),
+            h('ul', { style: 'padding-left:16px;margin:4px 0' }, p.cotizacion.items.map(i => h('li', {}, `${i.cantidad > 1 ? i.cantidad + '× ' : ''}${i.nombre}`))))),
+          h('td', {}, fmt(p.cotizacion.total, p), p.cotizacion.incluye_items_a_consultar ? h('div', { class: 'ayuda' }, '+ ítems a consultar') : null),
+          h('td', {}, h('select', { onchange: async e => { try { await api('PATCH', `/api/admin/presupuestos/${p.numero}`, { estado: e.target.value }); } catch (err) { mensaje('error', err.message); } } },
+            ESTADOS.map(s => h('option', { value: s, selected: s === p.estado }, s)))),
+          h('td', {}, h('textarea', { rows: 2, value: p.notas || '', placeholder: 'Notas internas', onchange: async e => {
+            try { await api('PATCH', `/api/admin/presupuestos/${p.numero}`, { notas: e.target.value }); } catch (err) { mensaje('error', err.message); }
+          } })))))) : h('p', { class: 'ayuda' }, 'Todavía no hay pedidos.'));
+  }).catch(e => mensaje('error', e.message));
+  return cont;
+}
+
+// ---------- historial ----------
+function vistaHistorial() {
+  const cont = h('div', { class: 'tarjeta' }, h('h2', {}, 'Historial de versiones'), h('p', { class: 'ayuda' }, 'Cargando…'));
+  api('GET', '/api/admin/historial').then(lista => {
+    cont.replaceChildren(h('h2', {}, 'Historial de versiones'),
+      h('p', { class: 'ayuda' }, 'Cada vez que publicás se guarda la versión anterior (últimas 50). Restaurar crea una versión nueva, no borra nada.'),
+      lista.length ? h('table', {}, h('tbody', {}, lista.map(v => h('tr', {},
+        h('td', {}, `Versión ${v.version}`), h('td', {}, `reemplazada el ${new Date(v.fecha).toLocaleString('es-AR')}`),
+        h('td', { style: 'text-align:right' },
+          h('button', { class: 'btn mini', onclick: async () => {
+            const datos = await api('GET', `/api/admin/historial/${v.archivo}`);
+            const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(datos, null, 2)], { type: 'application/json' })), download: v.archivo }); a.click();
+          } }, 'Descargar'), ' ',
+          h('button', { class: 'btn mini', onclick: async () => {
+            if (hayCambios() && !await confirmar('Tenés cambios sin publicar que se van a perder. ¿Seguir?')) return;
+            if (!await confirmar(`¿Volver a la versión ${v.version}? Los clientes la verán de inmediato.`)) return;
+            try { const r = await api('POST', `/api/admin/historial/${v.archivo}/restaurar`); cat = r; original = JSON.stringify(r); render(); mensaje('ok', `Restaurada. Ahora es la versión ${r.version}.`); }
+            catch (e) { mensaje('error', e.message, e.datos && e.datos.errores); }
+          } }, 'Restaurar')))))) : h('p', { class: 'ayuda' }, 'Todavía no hay versiones anteriores.'));
+  }).catch(e => mensaje('error', e.message));
+  return cont;
+}
+
+// ---------- importar / exportar ----------
+function vistaAvanzado() {
+  const area = h('textarea', { rows: 24, style: 'width:100%;font-family:ui-monospace,monospace;font-size:12px', value: JSON.stringify(cat, null, 2) });
+  return h('div', { class: 'tarjeta' },
+    h('h2', {}, 'Importar / exportar'),
+    h('p', { class: 'ayuda' }, 'El catálogo completo en formato JSON. Podés descargarlo como respaldo, editarlo con cualquier editor y pegarlo de nuevo.'),
+    h('div', { class: 'chips', style: 'margin-bottom:10px' },
+      h('button', { class: 'btn', onclick: () => {
+        const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(cat, null, 2)], { type: 'application/json' })), download: `catalogo-domo-v${cat.version}.json` }); a.click();
+      } }, 'Descargar JSON'),
+      h('label', { class: 'btn' }, 'Abrir archivo…', h('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: async e => {
+        const f = e.target.files[0]; if (f) area.value = await f.text();
+      } })),
+      h('button', { class: 'btn primario', onclick: async () => {
+        let nuevo;
+        try { nuevo = JSON.parse(area.value); } catch (e) { return mensaje('error', 'El texto no es JSON válido: ' + e.message); }
+        nuevo.version = cat.version;
+        const v = await api('POST', '/api/admin/catalogo/validar', nuevo);
+        if (!v.ok) return mensaje('error', 'El catálogo tiene errores:', v.errores);
+        cat = nuevo; render();
+        mensaje('ok', 'Cargado en el editor. Revisalo y tocá "Guardar y publicar".');
+      } }, 'Cargar en el editor')),
+    area);
+}
+
+// ---------- inicio ----------
+if (token) cargar().catch(() => salir()); else salir();
+</script>
+</body>
+</html>

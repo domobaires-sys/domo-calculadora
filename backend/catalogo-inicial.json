@@ -1,0 +1,1054 @@
+{
+  "version": 1,
+  "actualizado": "2026-10-07T00:00:00.000Z",
+  "ajustes": {
+    "empresa": "DOMO BAIRES",
+    "moneda": "USD",
+    "simbolo_moneda": "US$",
+    "iva_porcentaje": 21,
+    "precios_incluyen_iva": false,
+    "validez_dias": 15,
+    "porcion_esfera": 0.625,
+    "paso_linea": "linea",
+    "paso_tamano": "tamano",
+    "forma_3d": {
+      "poliedro": "icosaedro",
+      "frecuencia": 3
+    }
+  },
+  "textos": {
+    "titulo": "Configurá tu domo",
+    "subtitulo": "Elegí cada opción y mirá el precio estimado al instante.",
+    "boton_cotizar": "Ver presupuesto",
+    "boton_enviar": "Solicitar presupuesto formal",
+    "boton_reiniciar": "Empezar de nuevo",
+    "boton_mas": "+",
+    "boton_menos": "−",
+    "etiqueta_total": "Total estimado",
+    "etiqueta_subtotal": "Subtotal",
+    "etiqueta_iva": "IVA",
+    "nota_precios": "Precios estimados, sujetos a confirmación técnica y a la ubicación de la obra.",
+    "nota_tamanos": "Otros diámetros (hasta 12 m o más) se cotizan por proyecto.",
+    "mensaje_enviado": "¡Gracias! Recibimos tu pedido y te contactamos a la brevedad."
+  },
+  "pasos": [
+    {
+      "id": "linea",
+      "titulo": "Elegí una línea",
+      "descripcion": "",
+      "tipo": "unica",
+      "requerido": true,
+      "activo": true,
+      "orden": 1,
+      "predeterminada": "essential",
+      "opciones": [
+        {
+          "id": "dormi",
+          "nombre": "Dormi",
+          "descripcion": "Domos dormitorio: modelos CUBIC, ZOMO, KING y ATMO · base de más de 10 m²",
+          "precio": {
+            "modo": "multiplicador",
+            "valor": 1
+          },
+          "activo": true,
+          "area_piso_min_m2": 10
+        },
+        {
+          "id": "essential",
+          "nombre": "Essential",
+          "descripcion": "Económico, configuración cerrada · 4–6 m",
+          "precio": {
+            "modo": "multiplicador",
+            "valor": 1
+          },
+          "activo": true
+        },
+        {
+          "id": "confort",
+          "nombre": "Confort",
+          "descripcion": "Vivienda o estudio, más aberturas · 6–8 m",
+          "precio": {
+            "modo": "multiplicador",
+            "valor": 1.15
+          },
+          "activo": true
+        },
+        {
+          "id": "design",
+          "nombre": "Design",
+          "descripcion": "Arquitectura y terminaciones premium · 8–12 m",
+          "precio": {
+            "modo": "multiplicador",
+            "valor": 1.35
+          },
+          "activo": true
+        }
+      ]
+    },
+    {
+      "id": "modelo_dormi",
+      "titulo": "Elegí el modelo Dormi",
+      "descripcion": "Cada modelo tiene su propia forma y medidas.",
+      "tipo": "unica",
+      "requerido": true,
+      "activo": true,
+      "orden": 2,
+      "solo_lineas": [
+        "dormi"
+      ],
+      "predeterminada": "cubic",
+      "opciones": [
+        {
+          "id": "cubic",
+          "nombre": "CUBIC",
+          "descripcion": "Líneas rectas y techo facetado.",
+          "geometria": {
+            "area_piso_m2": 10.6,
+            "area_cubierta_m2": 26.0,
+            "altura_m": 2.6
+          },
+          "precio": {
+            "modo": "fijo",
+            "valor": 9800
+          },
+          "activo": true,
+          "forma_3d": {
+            "poliedro": "octaedro",
+            "frecuencia": 2,
+            "porcion": 0.5
+          }
+        },
+        {
+          "id": "zomo",
+          "nombre": "ZOMO",
+          "descripcion": "Domo compacto de perfil bajo.",
+          "geometria": {
+            "area_piso_m2": 11.3,
+            "area_cubierta_m2": 22.4,
+            "altura_m": 2.7
+          },
+          "precio": {
+            "modo": "fijo",
+            "valor": 10500
+          },
+          "activo": true,
+          "forma_3d": {
+            "poliedro": "icosaedro",
+            "frecuencia": 2,
+            "porcion": 0.5
+          }
+        },
+        {
+          "id": "king",
+          "nombre": "KING",
+          "descripcion": "El más amplio, con ventanal panorámico.",
+          "geometria": {
+            "area_piso_m2": 14.5,
+            "area_cubierta_m2": 30.5,
+            "altura_m": 3.1
+          },
+          "precio": {
+            "modo": "fijo",
+            "valor": 13900
+          },
+          "activo": true,
+          "forma_3d": {
+            "poliedro": "icosaedro",
+            "frecuencia": 3,
+            "porcion": 0.625
+          }
+        },
+        {
+          "id": "atmo",
+          "nombre": "ATMO",
+          "descripcion": "Domo alto con cúpula transparente.",
+          "geometria": {
+            "area_piso_m2": 12.6,
+            "area_cubierta_m2": 27.8,
+            "altura_m": 3.4
+          },
+          "precio": {
+            "modo": "fijo",
+            "valor": 12400
+          },
+          "activo": true,
+          "forma_3d": {
+            "poliedro": "icosaedro",
+            "frecuencia": 4,
+            "porcion": 0.75
+          }
+        }
+      ]
+    },
+    {
+      "id": "ventanal_dormi",
+      "titulo": "Ventanal",
+      "descripcion": "Cada modelo tiene dos opciones de ventanal.",
+      "tipo": "unica",
+      "requerido": true,
+      "activo": true,
+      "orden": 3,
+      "solo_lineas": [
+        "dormi"
+      ],
+      "opciones": [
+        {
+          "id": "ventanal_cubic_1",
+          "nombre": "Ventanal CUBIC 1",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 650
+          },
+          "reglas": {
+            "solo_con": [
+              "cubic"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "ventanal_cubic_2",
+          "nombre": "Ventanal CUBIC 2",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 980
+          },
+          "reglas": {
+            "solo_con": [
+              "cubic"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "ventanal_zomo_1",
+          "nombre": "Ventanal ZOMO 1",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 650
+          },
+          "reglas": {
+            "solo_con": [
+              "zomo"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "ventanal_zomo_2",
+          "nombre": "Ventanal ZOMO 2",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 980
+          },
+          "reglas": {
+            "solo_con": [
+              "zomo"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "ventanal_king_1",
+          "nombre": "Ventanal KING 1",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 650
+          },
+          "reglas": {
+            "solo_con": [
+              "king"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "ventanal_king_2",
+          "nombre": "Ventanal KING 2",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 980
+          },
+          "reglas": {
+            "solo_con": [
+              "king"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "ventanal_atmo_1",
+          "nombre": "Ventanal ATMO 1",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 650
+          },
+          "reglas": {
+            "solo_con": [
+              "atmo"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "ventanal_atmo_2",
+          "nombre": "Ventanal ATMO 2",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 980
+          },
+          "reglas": {
+            "solo_con": [
+              "atmo"
+            ]
+          },
+          "activo": true
+        }
+      ]
+    },
+    {
+      "id": "tamano",
+      "titulo": "Tamaño",
+      "descripcion": "Diámetro de la base del domo.",
+      "tipo": "unica",
+      "requerido": true,
+      "activo": true,
+      "orden": 4,
+      "predeterminada": "d6",
+      "opciones": [
+        {
+          "id": "d4",
+          "nombre": "4 m",
+          "diametro_m": 4,
+          "precio": {
+            "modo": "fijo",
+            "valor": 9500
+          },
+          "reglas": {
+            "solo_lineas": [
+              "essential"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "d5",
+          "nombre": "5 m",
+          "diametro_m": 5,
+          "precio": {
+            "modo": "fijo",
+            "valor": 13500
+          },
+          "reglas": {
+            "solo_lineas": [
+              "essential"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "d6",
+          "nombre": "6 m",
+          "diametro_m": 6,
+          "precio": {
+            "modo": "fijo",
+            "valor": 18500
+          },
+          "reglas": {
+            "solo_lineas": [
+              "essential",
+              "confort"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "d7",
+          "nombre": "7 m",
+          "diametro_m": 7,
+          "precio": {
+            "modo": "fijo",
+            "valor": 24000
+          },
+          "reglas": {
+            "solo_lineas": [
+              "confort"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "d8",
+          "nombre": "8 m",
+          "diametro_m": 8,
+          "precio": {
+            "modo": "fijo",
+            "valor": 31000
+          },
+          "reglas": {
+            "solo_lineas": [
+              "confort",
+              "design"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "d10",
+          "nombre": "10 m",
+          "diametro_m": 10,
+          "precio": {
+            "modo": "fijo",
+            "valor": 46000
+          },
+          "reglas": {
+            "solo_lineas": [
+              "design"
+            ]
+          },
+          "activo": true,
+          "forma_3d": {
+            "frecuencia": 4
+          }
+        },
+        {
+          "id": "d12",
+          "nombre": "12 m",
+          "diametro_m": 12,
+          "precio": {
+            "modo": "consultar",
+            "valor": 0
+          },
+          "reglas": {
+            "solo_lineas": [
+              "design"
+            ]
+          },
+          "activo": true,
+          "forma_3d": {
+            "frecuencia": 4
+          }
+        }
+      ],
+      "solo_lineas": [
+        "essential",
+        "confort",
+        "design"
+      ]
+    },
+    {
+      "id": "estructura",
+      "titulo": "Material de estructura",
+      "descripcion": "Material de las barras de la cúpula geodésica.",
+      "tipo": "unica",
+      "requerido": true,
+      "activo": true,
+      "orden": 5,
+      "predeterminada": "pino",
+      "opciones": [
+        {
+          "id": "pino",
+          "nombre": "Pino impregnado CCA",
+          "descripcion": "Estándar, tratado contra insectos y humedad.",
+          "precio": {
+            "modo": "por_m2_cubierta",
+            "valor": 0
+          },
+          "activo": true
+        },
+        {
+          "id": "eucalipto",
+          "nombre": "Eucalipto grandis",
+          "descripcion": "Mayor densidad y resistencia.",
+          "precio": {
+            "modo": "por_m2_cubierta",
+            "valor": 12
+          },
+          "activo": true
+        },
+        {
+          "id": "acero",
+          "nombre": "Acero galvanizado",
+          "descripcion": "Para grandes luces y uso intensivo.",
+          "precio": {
+            "modo": "por_m2_cubierta",
+            "valor": 35
+          },
+          "reglas": {
+            "solo_lineas": [
+              "confort",
+              "design"
+            ]
+          },
+          "activo": true
+        }
+      ]
+    },
+    {
+      "id": "terminacion_exterior",
+      "titulo": "Terminación exterior",
+      "descripcion": "",
+      "tipo": "unica",
+      "requerido": true,
+      "activo": true,
+      "orden": 6,
+      "predeterminada": "chapa_blanca",
+      "opciones": [
+        {
+          "id": "chapa_blanca",
+          "nombre": "Chapa blanca",
+          "color": "#f2f2f2",
+          "precio": {
+            "modo": "por_m2_cubierta",
+            "valor": 28
+          },
+          "activo": true
+        },
+        {
+          "id": "chapa_grafito",
+          "nombre": "Chapa grafito",
+          "color": "#4a4f57",
+          "precio": {
+            "modo": "por_m2_cubierta",
+            "valor": 30
+          },
+          "activo": true
+        },
+        {
+          "id": "madera_cedro",
+          "nombre": "Madera cedro",
+          "color": "#b5834a",
+          "precio": {
+            "modo": "por_m2_cubierta",
+            "valor": 55
+          },
+          "reglas": {
+            "solo_lineas": [
+              "confort",
+              "design"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "tejas_terracota",
+          "nombre": "Tejas terracota",
+          "color": "#b3523a",
+          "precio": {
+            "modo": "por_m2_cubierta",
+            "valor": 48
+          },
+          "activo": true
+        }
+      ]
+    },
+    {
+      "id": "terminacion_interior",
+      "titulo": "Terminación interior",
+      "descripcion": "",
+      "tipo": "unica",
+      "requerido": true,
+      "activo": true,
+      "orden": 7,
+      "predeterminada": "osb_visto",
+      "opciones": [
+        {
+          "id": "sin_terminacion",
+          "nombre": "Sin terminación",
+          "descripcion": "Estructura vista, sin revestir.",
+          "precio": {
+            "modo": "por_m2_cubierta",
+            "valor": 0
+          },
+          "reglas": {
+            "solo_lineas": [
+              "dormi",
+              "essential"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "osb_visto",
+          "nombre": "OSB visto",
+          "precio": {
+            "modo": "por_m2_cubierta",
+            "valor": 12
+          },
+          "activo": true
+        },
+        {
+          "id": "machimbre_pino",
+          "nombre": "Machimbre de pino",
+          "precio": {
+            "modo": "por_m2_cubierta",
+            "valor": 22
+          },
+          "activo": true
+        },
+        {
+          "id": "placa_yeso",
+          "nombre": "Placa de yeso pintada",
+          "precio": {
+            "modo": "por_m2_cubierta",
+            "valor": 18
+          },
+          "activo": true
+        }
+      ]
+    },
+    {
+      "id": "aislacion",
+      "titulo": "Aislación térmica",
+      "descripcion": "",
+      "tipo": "unica",
+      "requerido": true,
+      "activo": true,
+      "orden": 8,
+      "predeterminada": "lana_vidrio",
+      "opciones": [
+        {
+          "id": "lana_vidrio",
+          "nombre": "Lana de vidrio 50 mm",
+          "precio": {
+            "modo": "por_m2_cubierta",
+            "valor": 9
+          },
+          "activo": true
+        },
+        {
+          "id": "lana_vidrio_100",
+          "nombre": "Lana de vidrio 100 mm",
+          "precio": {
+            "modo": "por_m2_cubierta",
+            "valor": 14
+          },
+          "activo": true
+        },
+        {
+          "id": "poliuretano",
+          "nombre": "Poliuretano proyectado",
+          "precio": {
+            "modo": "por_m2_cubierta",
+            "valor": 18
+          },
+          "activo": true
+        }
+      ]
+    },
+    {
+      "id": "puertas",
+      "titulo": "Puertas",
+      "descripcion": "Cantidad de puertas por tipo.",
+      "tipo": "cantidades",
+      "requerido": true,
+      "activo": true,
+      "orden": 9,
+      "min_total": 1,
+      "max_total": 3,
+      "limites_por_linea": {
+        "essential": {
+          "max_total": 1
+        },
+        "dormi": {
+          "max_total": 1
+        }
+      },
+      "predeterminada": {
+        "puerta_simple": 1
+      },
+      "opciones": [
+        {
+          "id": "puerta_simple",
+          "nombre": "Puerta simple de madera",
+          "precio": {
+            "modo": "fijo",
+            "valor": 650
+          },
+          "max": 3,
+          "activo": true
+        },
+        {
+          "id": "puerta_doble_vidriada",
+          "nombre": "Puerta doble vidriada",
+          "precio": {
+            "modo": "fijo",
+            "valor": 1400
+          },
+          "max": 2,
+          "reglas": {
+            "solo_lineas": [
+              "confort",
+              "design"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "puerta_corrediza",
+          "nombre": "Ventanal corredizo (puerta balcón)",
+          "precio": {
+            "modo": "fijo",
+            "valor": 1900
+          },
+          "max": 2,
+          "reglas": {
+            "solo_lineas": [
+              "design"
+            ]
+          },
+          "activo": true
+        }
+      ]
+    },
+    {
+      "id": "ventanas",
+      "titulo": "Ventanas",
+      "descripcion": "Elegí el formato y la cantidad de cada ventana.",
+      "tipo": "cantidades",
+      "requerido": false,
+      "activo": true,
+      "orden": 10,
+      "min_total": 0,
+      "max_total": 10,
+      "limites_por_linea": {
+        "essential": {
+          "max_total": 2
+        },
+        "dormi": {
+          "max_total": 2
+        }
+      },
+      "predeterminada": {
+        "ventana_triangular_fija": 1
+      },
+      "opciones": [
+        {
+          "id": "ventana_triangular_fija",
+          "nombre": "Triangular fija",
+          "descripcion": "Ocupa un panel triangular del domo.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 280
+          },
+          "max": 10,
+          "activo": true
+        },
+        {
+          "id": "ventana_triangular_rebatible",
+          "nombre": "Triangular rebatible",
+          "descripcion": "Con apertura para ventilación.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 420
+          },
+          "max": 6,
+          "activo": true
+        },
+        {
+          "id": "ventana_pentagonal",
+          "nombre": "Pentagonal",
+          "descripcion": "Une cinco paneles en un ventanal.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 1100
+          },
+          "max": 2,
+          "reglas": {
+            "solo_lineas": [
+              "confort",
+              "design"
+            ],
+            "min_diametro": 6
+          },
+          "activo": true
+        },
+        {
+          "id": "ventana_portico",
+          "nombre": "Rectangular en pórtico",
+          "descripcion": "Se coloca en el frente del pórtico.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 380
+          },
+          "max": 2,
+          "reglas": {
+            "requiere_alguno": [
+              "portico_recto",
+              "portico_arco",
+              "portico_tunel"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "claraboya",
+          "nombre": "Claraboya cenital",
+          "descripcion": "Ventilación e iluminación en la cúspide.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 900
+          },
+          "max": 1,
+          "activo": true
+        }
+      ]
+    },
+    {
+      "id": "portico",
+      "titulo": "Formato de pórtico",
+      "descripcion": "Acceso saliente que permite puertas y ventanas verticales.",
+      "tipo": "unica",
+      "requerido": true,
+      "activo": true,
+      "orden": 11,
+      "predeterminada": "sin_portico",
+      "opciones": [
+        {
+          "id": "sin_portico",
+          "nombre": "Sin pórtico",
+          "precio": {
+            "modo": "fijo",
+            "valor": 0
+          },
+          "activo": true
+        },
+        {
+          "id": "portico_recto",
+          "nombre": "Pórtico recto",
+          "precio": {
+            "modo": "fijo",
+            "valor": 2200
+          },
+          "activo": true
+        },
+        {
+          "id": "portico_arco",
+          "nombre": "Pórtico en arco",
+          "precio": {
+            "modo": "fijo",
+            "valor": 2800
+          },
+          "reglas": {
+            "min_diametro": 6
+          },
+          "activo": true
+        },
+        {
+          "id": "portico_tunel",
+          "nombre": "Pórtico túnel / vestíbulo",
+          "precio": {
+            "modo": "fijo",
+            "valor": 4200
+          },
+          "reglas": {
+            "solo_lineas": [
+              "design"
+            ],
+            "min_diametro": 8
+          },
+          "activo": true
+        }
+      ],
+      "solo_lineas": [
+        "essential",
+        "confort",
+        "design"
+      ]
+    },
+    {
+      "id": "electricidad",
+      "titulo": "Sistema autónomo de electricidad",
+      "descripcion": "Kit solar off-grid con paneles, regulador, inversor y baterías.",
+      "tipo": "unica",
+      "requerido": false,
+      "activo": true,
+      "orden": 12,
+      "aplica_multiplicador": false,
+      "predeterminada": "sin_solar",
+      "opciones": [
+        {
+          "id": "sin_solar",
+          "nombre": "Sin sistema autónomo",
+          "precio": {
+            "modo": "fijo",
+            "valor": 0
+          },
+          "activo": true
+        },
+        {
+          "id": "solar_1kw",
+          "nombre": "Kit solar 1 kWp",
+          "descripcion": "Iluminación, heladera y uso básico.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 2600
+          },
+          "activo": true
+        },
+        {
+          "id": "solar_3kw",
+          "nombre": "Kit solar 3 kWp",
+          "descripcion": "Vivienda permanente de bajo consumo.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 5800
+          },
+          "activo": true
+        },
+        {
+          "id": "solar_5kw",
+          "nombre": "Kit solar 5 kWp híbrido",
+          "descripcion": "Vivienda completa, con respaldo a red o generador.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 9200
+          },
+          "reglas": {
+            "min_diametro": 6
+          },
+          "activo": true
+        }
+      ]
+    },
+    {
+      "id": "biodigestor",
+      "titulo": "Biodigestor",
+      "descripcion": "Tratamiento de efluentes cloacales sin red.",
+      "tipo": "unica",
+      "requerido": false,
+      "activo": true,
+      "orden": 13,
+      "aplica_multiplicador": false,
+      "predeterminada": "sin_biodigestor",
+      "opciones": [
+        {
+          "id": "sin_biodigestor",
+          "nombre": "Sin biodigestor",
+          "precio": {
+            "modo": "fijo",
+            "valor": 0
+          },
+          "activo": true
+        },
+        {
+          "id": "biodigestor_600",
+          "nombre": "Biodigestor 600 L",
+          "descripcion": "Hasta 5 personas.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 750
+          },
+          "activo": true
+        },
+        {
+          "id": "biodigestor_1300",
+          "nombre": "Biodigestor 1300 L",
+          "descripcion": "Hasta 10 personas.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 1250
+          },
+          "activo": true
+        }
+      ]
+    },
+    {
+      "id": "opcionales",
+      "titulo": "Opcionales",
+      "descripcion": "Sumá lo que necesites.",
+      "tipo": "multiple",
+      "requerido": false,
+      "activo": true,
+      "orden": 14,
+      "predeterminada": [],
+      "opciones": [
+        {
+          "id": "platea",
+          "nombre": "Platea de hormigón",
+          "precio": {
+            "modo": "por_m2_piso",
+            "valor": 38
+          },
+          "reglas": {
+            "excluye": [
+              "deck"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "deck",
+          "nombre": "Piso deck elevado",
+          "precio": {
+            "modo": "por_m2_piso",
+            "valor": 45
+          },
+          "reglas": {
+            "excluye": [
+              "platea"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "entrepiso",
+          "nombre": "Entrepiso / mezzanine",
+          "precio": {
+            "modo": "por_m2_piso",
+            "valor": 60
+          },
+          "reglas": {
+            "min_diametro": 6
+          },
+          "activo": true
+        },
+        {
+          "id": "instalacion_electrica",
+          "nombre": "Instalación eléctrica interior",
+          "precio": {
+            "modo": "fijo",
+            "valor": 1200
+          },
+          "activo": true
+        },
+        {
+          "id": "instalacion_sanitaria",
+          "nombre": "Instalación sanitaria (baño)",
+          "precio": {
+            "modo": "fijo",
+            "valor": 1500
+          },
+          "activo": true
+        },
+        {
+          "id": "montaje",
+          "nombre": "Montaje en obra",
+          "descripcion": "Porcentaje sobre el total de materiales.",
+          "precio": {
+            "modo": "porcentaje",
+            "valor": 12
+          },
+          "activo": true
+        },
+        {
+          "id": "flete",
+          "nombre": "Flete (hasta 100 km de CABA)",
+          "precio": {
+            "modo": "fijo",
+            "valor": 600
+          },
+          "activo": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOMO · Configurador</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+  :root { --azul: #15124f; --acento: #4f46e5; --suave: #eef0ff; --borde: #dfe2ee; --gris: #6b7085; --fondo: #f1f2f8; --rojo: #c62828; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: var(--fondo); color: #1f2333; }
+  .contenedor { max-width: 1180px; margin: 0 auto; padding: 20px 16px; display: grid; grid-template-columns: 1fr 360px; gap: 18px; align-items: start; }
+  @media (max-width: 860px) { .contenedor { grid-template-columns: 1fr; } }
+  header.portada { grid-column: 1 / -1; }
+  header.portada h1 { margin: 0 0 4px; color: var(--azul); font-size: 24px; }
+  header.portada p { margin: 0; color: var(--gris); }
+  .paso { background: #fff; border-radius: 14px; padding: 18px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(20,20,60,.06); }
+  .paso h2 { display: flex; align-items: center; gap: 10px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #3b3f58; margin: 0 0 12px; }
+  .num { width: 24px; height: 24px; border-radius: 50%; background: var(--azul); color: #fff; display: grid; place-items: center; font-size: 12px; letter-spacing: 0; }
+  .desc-paso { color: var(--gris); font-size: 13px; margin: -6px 0 12px; }
+  .opciones { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .opciones.lineas { grid-template-columns: 1fr; }
+  .op { text-align: left; background: #fff; border: 1.5px solid var(--borde); border-radius: 10px; padding: 12px; cursor: pointer; font: inherit; color: inherit; display: flex; flex-direction: column; gap: 4px; }
+  .op:hover:not(:disabled) { border-color: var(--acento); }
+  .op.sel { border-color: var(--acento); background: var(--suave); box-shadow: 0 0 0 1px var(--acento) inset; }
+  .op:disabled { opacity: .45; cursor: not-allowed; }
+  .op strong { font-size: 15px; }
+  .op small { color: var(--gris); font-size: 12px; }
+  .op .motivo { color: var(--rojo); font-size: 11px; }
+  .swatch { width: 22px; height: 22px; border-radius: 50%; border: 1px solid #0002; }
+  .cant { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--borde); }
+  .cant:last-child { border-bottom: none; }
+  .cant .info { flex: 1; }
+  .cant .info small { display: block; color: var(--gris); font-size: 12px; }
+  .cant button { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--borde); background: #fff; font-size: 18px; cursor: pointer; }
+  .cant button:disabled { opacity: .35; cursor: not-allowed; }
+  .cant output { width: 24px; text-align: center; font-weight: 700; }
+  .nota { color: var(--gris); font-size: 12px; margin-top: 10px; }
+  aside { position: sticky; top: 16px; }
+  .resumen { background: #fff; border-radius: 14px; padding: 18px; box-shadow: 0 1px 3px rgba(20,20,60,.06); }
+  .resumen h2 { margin: 0 0 10px; font-size: 16px; color: var(--azul); }
+  .medidas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+  .medidas div { background: var(--fondo); border-radius: 8px; padding: 8px; text-align: center; font-size: 11px; color: var(--gris); }
+  .medidas b { display: block; font-size: 15px; color: var(--azul); }
+  .linea { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 4px 0; }
+  .linea span:last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .total { border-top: 2px solid var(--azul); margin-top: 8px; padding-top: 8px; font-size: 18px; font-weight: 700; color: var(--azul); }
+  .errores { background: #ffebee; color: var(--rojo); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin: 10px 0; }
+  .avisos { background: #fff8e1; color: #8a5a00; border-radius: 8px; padding: 8px 12px; font-size: 13px; margin: 10px 0; }
+  form { display: grid; gap: 8px; margin-top: 14px; }
+  input, textarea { font: inherit; padding: 9px; border: 1px solid var(--borde); border-radius: 8px; }
+  .boton { background: var(--acento); color: #fff; border: none; border-radius: 10px; padding: 12px; font-weight: 700; font-size: 15px; cursor: pointer; }
+  .boton:disabled { opacity: .5; cursor: not-allowed; }
+  .boton.sec { background: #fff; color: var(--acento); border: 1.5px solid var(--acento); }
+  .exito { background: #e8f5e9; color: #2e7d32; border-radius: 8px; padding: 12px; }
+  .oculto { position: absolute; left: -9999px; }
+  .vista3d { background: linear-gradient(#e9ecf8, #fff); border-radius: 14px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(20,20,60,.06); position: relative; overflow: hidden; height: 340px; }
+  .vista3d canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .vista3d .info3d { position: absolute; left: 12px; bottom: 10px; font-size: 12px; color: var(--gris); pointer-events: none; }
+  @media (max-width: 860px) { .vista3d { height: 260px; } }
+</style>
+</head>
+<body>
+<div class="contenedor">
+  <header class="portada"><h1 id="titulo">Configurá tu domo</h1><p id="subtitulo"></p></header>
+  <main><div class="vista3d" id="vista3d" hidden><div class="info3d" id="info3d"></div></div><div id="pasos"></div></main>
+  <aside><div class="resumen" id="resumen"></div></aside>
+</div>
+<script>
+'use strict';
+// Configurador de ejemplo. Todo lo que muestra (pasos, opciones, botones y
+// textos) sale del catálogo del backend: se edita desde /admin sin tocar código.
+const API = '';
+const $ = s => document.querySelector(s);
+function h(tag, attrs, ...hijos) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === undefined || v === null || v === false) continue;
+    if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'class') el.className = v;
+    else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+    else if (k === 'value') el.value = v;
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of hijos.flat()) if (c !== null && c !== undefined && c !== false) el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  return el;
+}
+
+let cat, seleccion, cotizacion, enviado = null, pidiendo = 0;
+const t = (k, def) => (cat.textos && cat.textos[k]) || def;
+const dinero = n => `${cotizacion.simbolo_moneda} ${Number(n).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+async function iniciar() {
+  cat = await (await fetch(API + '/api/catalogo')).json();
+  seleccion = structuredClone(cat.seleccion_inicial);
+  document.title = `${cat.ajustes.empresa || 'DOMO'} · ${t('titulo', 'Configurador')}`;
+  $('#titulo').textContent = t('titulo', 'Configurá tu domo');
+  $('#subtitulo').textContent = t('subtitulo', '');
+  await recotizar();
+}
+
+async function recotizar(reintento = 0) {
+  const n = ++pidiendo;
+  const r = await fetch(API + '/api/cotizar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seleccion }) });
+  const datos = await r.json();
+  if (n !== pidiendo) return; // llegó una respuesta más nueva
+  cotizacion = datos;
+  // Si al cambiar de línea o tamaño una opción única quedó no disponible,
+  // se elige automáticamente la primera disponible de ese paso.
+  let corrigio = false;
+  for (const paso of cat.pasos) {
+    if (paso.tipo !== 'unica') continue;
+    const actual = seleccion[paso.id];
+    const disp = cotizacion.disponibilidad[paso.id] || {};
+    if (actual && disp[actual] && !disp[actual].disponible) {
+      const alternativa = paso.opciones.find(o => disp[o.id] && disp[o.id].disponible);
+      if (alternativa) { seleccion[paso.id] = alternativa.id; corrigio = true; }
+    }
+  }
+  if (corrigio && reintento < 3) return recotizar(reintento + 1);
+  render();
+}
+
+function cambiar(fn) { fn(); enviado = null; recotizar(); }
+
+function render() {
+  const disp = cotizacion.disponibilidad;
+  // Solo se muestran los pasos que corresponden a la línea elegida.
+  const visibles = cat.pasos.filter(p => !cotizacion.pasos_visibles || cotizacion.pasos_visibles.includes(p.id));
+  $('#pasos').replaceChildren(...visibles.map((paso, i) => {
+    const d = disp[paso.id] || {};
+    let cuerpo;
+    if (paso.tipo === 'cantidades') {
+      const valores = seleccion[paso.id] || {};
+      const total = Object.values(valores).reduce((s, n) => s + n, 0);
+      const lim = (cat.ajustes.paso_linea && paso.limites_por_linea && paso.limites_por_linea[seleccion[cat.ajustes.paso_linea]]) || {};
+      const max = lim.max_total ?? paso.max_total;
+      cuerpo = h('div', {}, paso.opciones.filter(op => !(d[op.id] && d[op.id].oculta)).map(op => {
+        const n = valores[op.id] || 0;
+        const ok = d[op.id] ? d[op.id].disponible : true;
+        const set = v => cambiar(() => { const obj = { ...(seleccion[paso.id] || {}) }; if (v > 0) obj[op.id] = v; else delete obj[op.id]; seleccion[paso.id] = obj; });
+        return h('div', { class: 'cant' },
+          h('div', { class: 'info' }, op.nombre, op.descripcion ? h('small', {}, op.descripcion) : null, !ok ? h('small', { class: 'motivo', style: { color: 'var(--rojo)' } }, d[op.id].motivo) : null),
+          h('button', { type: 'button', 'aria-label': 'Restar', disabled: n <= 0, onclick: () => set(n - 1) }, t('boton_menos', '−')),
+          h('output', {}, n),
+          h('button', { type: 'button', 'aria-label': 'Sumar', disabled: !ok || (op.max !== undefined && n >= op.max) || (max !== undefined && total >= max), onclick: () => set(n + 1) }, t('boton_mas', '+')));
+      }));
+    } else {
+      const elegidas = paso.tipo === 'unica' ? [seleccion[paso.id]] : (seleccion[paso.id] || []);
+      cuerpo = h('div', { class: 'opciones' + (paso.id === cat.ajustes.paso_linea ? ' lineas' : '') }, paso.opciones.filter(op => !(d[op.id] && d[op.id].oculta)).map(op => {
+        const sel = elegidas.includes(op.id);
+        const ok = d[op.id] ? d[op.id].disponible : true;
+        const extra = op.diametro_m ? `≈ ${Math.round(Math.PI * (op.diametro_m / 2) ** 2)} m²`
+          : op.geometria ? `${op.descripcion ? op.descripcion + ' · ' : ''}${op.geometria.area_piso_m2} m² · alt. ${op.geometria.altura_m} m` : op.descripcion;
+        return h('button', {
+          type: 'button', class: 'op' + (sel ? ' sel' : ''), disabled: !ok && !sel, title: ok ? '' : d[op.id].motivo, 'aria-pressed': String(sel),
+          onclick: () => cambiar(() => {
+            if (paso.tipo === 'unica') seleccion[paso.id] = sel && !paso.requerido ? null : op.id;
+            else seleccion[paso.id] = sel ? elegidas.filter(x => x !== op.id) : [...elegidas, op.id];
+          }),
+        }, op.imagen ? h('img', { src: op.imagen, alt: '', style: { width: '100%', borderRadius: '6px' } }) : null, op.color ? h('span', { class: 'swatch', style: { background: op.color } }) : null, h('strong', {}, op.nombre), extra ? h('small', {}, extra) : null,
+          !ok ? h('span', { class: 'motivo' }, d[op.id].motivo) : null);
+      }));
+    }
+    return h('section', { class: 'paso' }, h('h2', {}, h('span', { class: 'num' }, i + 1), paso.titulo),
+      paso.descripcion ? h('p', { class: 'desc-paso' }, paso.descripcion) : null, cuerpo,
+      paso.id === cat.ajustes.paso_tamano && t('nota_tamanos') ? h('p', { class: 'nota' }, t('nota_tamanos')) : null);
+  }));
+  renderResumen();
+  vista3d.mostrar(cotizacion.medidas);
+}
+
+// ---------- Vista 3D de la estructura ----------
+// Arma la cúpula geodésica (paneles + barras) con la forma de la medida
+// elegida: poliedro, frecuencia y porción salen del catálogo (forma_3d).
+const vista3d = (() => {
+  let escena, camara, render3d, controles, grupo, ultima = '';
+  const caja = $('#vista3d');
+
+  function iniciar() {
+    if (escena) return true;
+    if (!window.THREE || !THREE.OrbitControls) return false; // sin internet: no se muestra
+    caja.hidden = false;
+    escena = new THREE.Scene();
+    camara = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
+    render3d = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    render3d.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    caja.prepend(render3d.domElement);
+    controles = new THREE.OrbitControls(camara, render3d.domElement);
+    controles.enableDamping = true;
+    controles.autoRotate = true;
+    controles.autoRotateSpeed = 1.2;
+    controles.maxPolarAngle = Math.PI / 2 - 0.02;
+    controles.enablePan = false;
+    render3d.domElement.addEventListener('pointerdown', () => { controles.autoRotate = false; });
+    escena.add(new THREE.HemisphereLight(0xffffff, 0x8a8f9e, 0.9));
+    const sol = new THREE.DirectionalLight(0xffffff, 0.6);
+    sol.position.set(8, 14, 6);
+    escena.add(sol);
+    const piso = new THREE.Mesh(new THREE.CircleGeometry(60, 64), new THREE.MeshBasicMaterial({ color: 0xe3e8da }));
+    piso.rotation.x = -Math.PI / 2;
+    piso.position.y = -0.01;
+    escena.add(piso);
+    new ResizeObserver(ajustarTamano).observe(caja);
+    ajustarTamano();
+    (function animar() { requestAnimationFrame(animar); controles.update(); render3d.render(escena, camara); })();
+    return true;
+  }
+
+  function ajustarTamano() {
+    const w = caja.clientWidth, h = caja.clientHeight;
+    if (!w || !h) return;
+    render3d.setSize(w, h, false);
+    camara.aspect = w / h;
+    camara.updateProjectionMatrix();
+  }
+
+  function poliedro(tipo) {
+    if (tipo === 'octaedro') {
+      return { v: [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]],
+        c: [[0, 2, 4], [0, 4, 3], [0, 3, 5], [0, 5, 2], [1, 4, 2], [1, 3, 4], [1, 5, 3], [1, 2, 5]] };
+    }
+    const t = (1 + Math.sqrt(5)) / 2, L = Math.hypot(1, t);
+    const v = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]]
+      // Se gira para que un vértice quede arriba (cúpula con pentágono en la cima).
+      .map(([x, y, z]) => [x, (y + z * t) / L, (-y * t + z) / L]);
+    return { v, c: [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
+      [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]] };
+  }
+
+  // Divide cada cara en triángulos y los proyecta sobre una esfera de radio 1.
+  function geodesica(tipo, frec) {
+    const base = poliedro(tipo), puntos = [], caras = [], indice = new Map();
+    const punto = p => {
+      const l = Math.hypot(...p), q = p.map(x => x / l), k = q.map(x => x.toFixed(5)).join();
+      if (!indice.has(k)) { indice.set(k, puntos.length); puntos.push(q); }
+      return indice.get(k);
+    };
+    for (const [a, b, c] of base.c) {
+      const A = base.v[a], B = base.v[b], C = base.v[c], g = [];
+      for (let i = 0; i <= frec; i++) {
+        g[i] = [];
+        for (let j = 0; j <= frec - i; j++) g[i][j] = punto([0, 1, 2].map(n => A[n] + (B[n] - A[n]) * i / frec + (C[n] - A[n]) * j / frec));
+      }
+      for (let i = 0; i < frec; i++) for (let j = 0; j < frec - i; j++) {
+        caras.push([g[i][j], g[i + 1][j], g[i][j + 1]]);
+        if (j < frec - i - 1) caras.push([g[i + 1][j], g[i + 1][j + 1], g[i][j + 1]]);
+      }
+    }
+    return { puntos, caras };
+  }
+
+  function mostrar(m) {
+    if (!m || !m.forma_3d || !iniciar()) return;
+    const f = m.forma_3d;
+    const diametro = m.diametro_m || 2 * Math.sqrt(m.area_piso_m2 / Math.PI);
+    const clave = JSON.stringify([f, diametro, m.altura_m]);
+    if (clave === ultima) return;
+    ultima = clave;
+
+    const { puntos, caras } = geodesica(f.poliedro, f.frecuencia);
+    // Se queda con la parte de arriba de la esfera según la porción (5/8, 1/2...).
+    const corte = 1 - 2 * f.porcion - 1e-3;
+    const visibles = caras.filter(c => c.every(i => puntos[i][1] >= corte));
+    const usados = [...new Set(visibles.flat())];
+    // Los nodos del borde se apoyan todos al mismo nivel para que la base quede plana.
+    const usoArista = new Map();
+    for (const [a, b, c] of visibles) for (const [p, q] of [[a, b], [b, c], [c, a]]) { const k = p < q ? p + ',' + q : q + ',' + p; usoArista.set(k, (usoArista.get(k) || 0) + 1); }
+    const borde = new Set([...usoArista].filter(([, n]) => n === 1).flatMap(([k]) => k.split(',').map(Number)));
+    const yMin = Math.max(...[...borde].map(i => puntos[i][1]));
+    for (const i of borde) puntos[i] = [puntos[i][0], yMin, puntos[i][2]];
+    const radioBase = Math.max(...usados.filter(i => puntos[i][1] - yMin < 1e-3).map(i => Math.hypot(puntos[i][0], puntos[i][2])));
+    // Escala para que coincidan el diámetro de la base y la altura reales.
+    const ex = (diametro / 2) / (radioBase || 1), ey = m.altura_m / (1 - yMin);
+    const pos = puntos.map(([x, y, z]) => [x * ex, (y - yMin) * ey, z * ex]);
+
+    if (grupo) { escena.remove(grupo); grupo.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); }); }
+    grupo = new THREE.Group();
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(visibles.flatMap(c => c.flatMap(i => pos[i])), 3));
+    geo.computeVertexNormals();
+    grupo.add(new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ color: 0xf4efe6, transparent: true, opacity: 0.55, side: THREE.DoubleSide, flatShading: true, depthWrite: false })));
+
+    // Barras de la estructura: un cilindro por cada arista.
+    const aristas = new Set();
+    for (const [a, b, c] of visibles) for (const [p, q] of [[a, b], [b, c], [c, a]]) aristas.add(p < q ? p + ',' + q : q + ',' + p);
+    const grosor = Math.max(0.035, diametro / 160);
+    const matBarra = new THREE.MeshLambertMaterial({ color: 0x8b5a2b });
+    const arriba = new THREE.Vector3(0, 1, 0);
+    for (const k of aristas) {
+      const [p, q] = k.split(',').map(i => new THREE.Vector3(...pos[i]));
+      const largo = p.distanceTo(q);
+      const barra = new THREE.Mesh(new THREE.CylinderGeometry(grosor, grosor, largo, 6), matBarra);
+      barra.position.copy(p).add(q).multiplyScalar(0.5);
+      barra.quaternion.setFromUnitVectors(arriba, q.clone().sub(p).normalize());
+      grupo.add(barra);
+    }
+    const matNodo = new THREE.MeshLambertMaterial({ color: 0x3b3f58 });
+    for (const i of usados) {
+      const nodo = new THREE.Mesh(new THREE.SphereGeometry(grosor * 1.8, 8, 6), matNodo);
+      nodo.position.set(...pos[i]);
+      grupo.add(nodo);
+    }
+    escena.add(grupo);
+
+    const tam = Math.max(diametro, m.altura_m);
+    camara.position.set(tam * 1.4, tam * 0.8, tam * 1.4);
+    controles.target.set(0, m.altura_m * 0.4, 0);
+    $('#info3d').textContent = `${m.modelo ? m.modelo + ' · ' : ''}${aristas.size} barras · ${visibles.length} paneles · arrastrá para girar`;
+  }
+
+  return { mostrar };
+})();
+
+function renderResumen() {
+  const c = cotizacion, m = c.medidas;
+  const partes = [h('h2', {}, t('boton_cotizar', 'Tu presupuesto'))];
+  if (m) partes.push(h('div', { class: 'medidas' },
+    m.diametro_m ? h('div', {}, h('b', {}, `${m.diametro_m} m`), 'diámetro') : h('div', {}, h('b', {}, m.modelo || '—'), 'modelo'), h('div', {}, h('b', {}, `${m.altura_m} m`), 'altura'), h('div', {}, h('b', {}, `${Math.round(m.area_piso_m2)} m²`), 'piso')));
+  for (const i of c.items) {
+    if (i.importe === 0) continue;
+    partes.push(h('div', { class: 'linea' }, h('span', {}, `${i.cantidad > 1 ? i.cantidad + ' × ' : ''}${i.nombre}`), h('span', {}, i.a_consultar ? 'a consultar' : dinero(i.importe))));
+  }
+  const incluidos = c.items.filter(i => i.importe === 0).map(i => i.nombre);
+  if (incluidos.length) partes.push(h('p', { class: 'nota' }, 'Incluido: ' + incluidos.join(', ')));
+  partes.push(h('div', { class: 'linea' }, h('span', {}, t('etiqueta_subtotal', 'Subtotal')), h('span', {}, dinero(c.precios_incluyen_iva ? c.neto : c.subtotal))));
+  if (c.iva_porcentaje) partes.push(h('div', { class: 'linea' }, h('span', {}, `${t('etiqueta_iva', 'IVA')} ${c.iva_porcentaje}%`), h('span', {}, dinero(c.iva))));
+  partes.push(h('div', { class: 'linea total' }, h('span', {}, t('etiqueta_total', 'Total')), h('span', {}, dinero(c.total))));
+  if (c.errores.length) partes.push(h('div', { class: 'errores' }, c.errores.map(e => h('div', {}, e.mensaje))));
+  if (c.avisos.length) partes.push(h('div', { class: 'avisos' }, c.avisos.map(a => h('div', {}, a))));
+  partes.push(h('p', { class: 'nota' }, `${t('nota_precios', '')} Válido hasta ${c.valido_hasta}.`));
+
+  if (enviado) partes.push(h('div', { class: 'exito' }, h('strong', {}, enviado.numero), h('br'), enviado.mensaje));
+  else partes.push(formulario());
+  partes.push(h('button', { type: 'button', class: 'boton sec', style: { width: '100%', marginTop: '8px' }, onclick: () => cambiar(() => { seleccion = structuredClone(cat.seleccion_inicial); }) }, t('boton_reiniciar', 'Empezar de nuevo')));
+  $('#resumen').replaceChildren(...partes);
+}
+
+function formulario() {
+  const err = h('div', { class: 'errores', hidden: true });
+  const f = h('form', { onsubmit: async e => {
+    e.preventDefault();
+    const datos = Object.fromEntries(new FormData(f));
+    const boton = f.querySelector('button'); boton.disabled = true;
+    try {
+      const r = await fetch(API + '/api/presupuestos', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seleccion, sitio_web: datos.sitio_web, cliente: { nombre: datos.nombre, email: datos.email, telefono: datos.telefono, localidad: datos.localidad, comentarios: datos.comentarios } }) });
+      const res = await r.json();
+      if (!r.ok) throw new Error([res.error, ...(res.errores || [])].join('. '));
+      enviado = res; renderResumen();
+    } catch (ex) { err.textContent = ex.message; err.hidden = false; boton.disabled = false; }
+  } },
+    h('input', { name: 'nombre', placeholder: 'Nombre', required: true, autocomplete: 'name' }),
+    h('input', { name: 'email', type: 'email', placeholder: 'Email', autocomplete: 'email' }),
+    h('input', { name: 'telefono', placeholder: 'Teléfono / WhatsApp', autocomplete: 'tel' }),
+    h('input', { name: 'localidad', placeholder: 'Localidad de la obra' }),
+    h('textarea', { name: 'comentarios', rows: 2, placeholder: 'Comentarios (opcional)' }),
+    h('input', { name: 'sitio_web', class: 'oculto', tabindex: '-1', autocomplete: 'off', 'aria-hidden': 'true' }),
+    err,
+    h('button', { class: 'boton', disabled: !cotizacion.ok }, t('boton_enviar', 'Solicitar presupuesto')));
+  return f;
+}
+
+iniciar().catch(e => { document.body.textContent = 'No se pudo cargar el configurador: ' + e.message; });
+</script>
+</body>
+</html>
