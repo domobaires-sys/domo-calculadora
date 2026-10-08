@@ -39,6 +39,16 @@
       "predeterminada": "essential",
       "opciones": [
         {
+          "id": "dormi",
+          "nombre": "Dormi",
+          "descripcion": "Domo dormitorio compacto, ideal para glamping o habitación extra · 3–4 m",
+          "precio": {
+            "modo": "multiplicador",
+            "valor": 1
+          },
+          "activo": true
+        },
+        {
           "id": "essential",
           "nombre": "Essential",
           "descripcion": "Económico, configuración cerrada · 4–6 m",
@@ -81,6 +91,21 @@
       "predeterminada": "d6",
       "opciones": [
         {
+          "id": "d3",
+          "nombre": "3 m",
+          "diametro_m": 3,
+          "precio": {
+            "modo": "fijo",
+            "valor": 6500
+          },
+          "reglas": {
+            "solo_lineas": [
+              "dormi"
+            ]
+          },
+          "activo": true
+        },
+        {
           "id": "d4",
           "nombre": "4 m",
           "diametro_m": 4,
@@ -90,6 +115,7 @@
           },
           "reglas": {
             "solo_lineas": [
+              "dormi",
               "essential"
             ]
           },
@@ -315,6 +341,7 @@
           },
           "reglas": {
             "solo_lineas": [
+              "dormi",
               "essential"
             ]
           },
@@ -401,6 +428,9 @@
       "limites_por_linea": {
         "essential": {
           "max_total": 1
+        },
+        "dormi": {
+          "max_total": 1
         }
       },
       "predeterminada": {
@@ -462,6 +492,9 @@
       "max_total": 10,
       "limites_por_linea": {
         "essential": {
+          "max_total": 2
+        },
+        "dormi": {
           "max_total": 2
         }
       },

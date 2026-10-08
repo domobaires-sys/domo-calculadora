@@ -9,14 +9,17 @@
   const INICIAL = M.catalogoInicial;
   const ESTADOS = ['nuevo', 'contactado', 'presupuestado', 'ganado', 'perdido'];
 
+  // Cada versión del catálogo de ejemplo usa su propio espacio, así una demo
+  // actualizada no queda tapada por datos viejos guardados en el navegador.
+  const PREFIJO = 'domo_demo_' + (M.versionDemo || '') + '_';
   const memoria = {};
   const leer = (k, def) => {
-    try { const v = localStorage.getItem('domo_demo_' + k); if (v !== null) return JSON.parse(v); } catch {}
+    try { const v = localStorage.getItem(PREFIJO + k); if (v !== null) return JSON.parse(v); } catch {}
     return k in memoria ? structuredClone(memoria[k]) : structuredClone(def);
   };
   const escribir = (k, v) => {
     memoria[k] = structuredClone(v);
-    try { localStorage.setItem('domo_demo_' + k, JSON.stringify(v)); } catch {}
+    try { localStorage.setItem(PREFIJO + k, JSON.stringify(v)); } catch {}
   };
 
   const catalogo = () => leer('catalogo', INICIAL);
@@ -105,7 +108,7 @@
   };
 
   window.domoDemoReiniciar = () => {
-    for (const k of ['catalogo', 'historial', 'pedidos']) { delete memoria[k]; try { localStorage.removeItem('domo_demo_' + k); } catch {} }
+    for (const k of ['catalogo', 'historial', 'pedidos']) { delete memoria[k]; try { localStorage.removeItem(PREFIJO + k); } catch {} }
     location.reload();
   };
 })();

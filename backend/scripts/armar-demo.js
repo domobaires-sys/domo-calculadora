@@ -12,8 +12,11 @@ const destino = path.resolve(process.argv[2] || path.join(raiz, 'demo-publicada'
 fs.mkdirSync(destino, { recursive: true });
 
 const modulo = (nombre, archivo) => `(function (module) { ${fs.readFileSync(path.join(raiz, archivo), 'utf8')}\n window.__modulos.${nombre} = module.exports; })({ exports: {} });\n`;
+const catalogoTexto = fs.readFileSync(path.join(raiz, 'catalogo-inicial.json'), 'utf8');
+const versionDemo = require('node:crypto').createHash('sha1').update(catalogoTexto).digest('hex').slice(0, 8);
 const js = 'window.__modulos = {};\n'
-  + `window.__modulos.catalogoInicial = ${fs.readFileSync(path.join(raiz, 'catalogo-inicial.json'), 'utf8')};\n`
+  + `window.__modulos.versionDemo = '${versionDemo}';\n`
+  + `window.__modulos.catalogoInicial = ${catalogoTexto};\n`
   + modulo('validador', 'src/validador.js')
   + modulo('cotizador', 'src/cotizador.js')
   + fs.readFileSync(path.join(raiz, 'demo', 'api-navegador.js'), 'utf8');
