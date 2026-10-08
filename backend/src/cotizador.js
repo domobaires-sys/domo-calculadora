@@ -67,6 +67,11 @@ function lista(nombres) {
 function evaluarDisponibilidad(op, ctx) {
   const reglas = op.reglas || {};
   const nombre = id => ctx.nombres.get(id) || id;
+  // solo_con: la opción solo aparece si se eligió alguna de las indicadas
+  // (ej. los ventanales de cada modelo). Si no, se oculta en vez de apagarse.
+  if (reglas.solo_con && reglas.solo_con.length && !reglas.solo_con.some(id => ctx.elegidas.has(id))) {
+    return { disponible: false, oculta: true, motivo: `Disponible solo con ${lista(reglas.solo_con.map(nombre))}` };
+  }
   if (reglas.solo_lineas && ctx.linea && !reglas.solo_lineas.includes(ctx.linea)) {
     return { disponible: false, motivo: `Disponible solo en línea ${lista(reglas.solo_lineas.map(nombre))}` };
   }
@@ -114,14 +119,14 @@ function limitesDelPaso(paso, linea) {
 
 function cotizar(catalogo, seleccionCliente = {}, opciones = {}) {
   const ajustes = catalogo.ajustes || {};
-  const pasos = pasosActivos(catalogo);
+  const todosLosPasos = pasosActivos(catalogo);
   const errores = [];
   const avisos = [];
   const seleccion = { ...seleccionInicial(catalogo), ...(seleccionCliente || {}) };
 
   const nombres = new Map();
   const excluyePor = new Map();
-  for (const paso of pasos) {
+  for (const paso of todosLosPasos) {
     for (const op of paso.opciones) {
       nombres.set(op.id, op.nombre);
       if (op.reglas && op.reglas.excluye) excluyePor.set(op.id, op.reglas.excluye);
@@ -130,7 +135,7 @@ function cotizar(catalogo, seleccionCliente = {}, opciones = {}) {
 
   // 1. Normalizar la selección y descartar ids inexistentes.
   const elegidasPorPaso = new Map();
-  for (const paso of pasos) {
+  for (const paso of todosLosPasos) {
     const ids = new Set(paso.opciones.map(o => o.id));
     const elegidas = elegidasDelPaso(paso, seleccion[paso.id], errores).filter(e => {
       if (ids.has(e.id)) return true;
@@ -145,11 +150,40 @@ function cotizar(catalogo, seleccionCliente = {}, opciones = {}) {
     return e && e.length ? e[0].id : null;
   };
   const linea = elegidaUnica(ajustes.paso_linea);
+
+  // Un paso con solo_lineas se muestra únicamente en esas líneas; en las demás
+  // se oculta y lo que tenga elegido no cuenta.
+  const pasos = todosLosPasos.filter(p => !(linea && Array.isArray(p.solo_lineas) && p.solo_lineas.length && !p.solo_lineas.includes(linea)));
+  const visibles = new Set(pasos.map(p => p.id));
+  for (const id of elegidasPorPaso.keys()) if (!visibles.has(id)) elegidasPorPaso.set(id, []);
+
   const tamano = elegidaUnica(ajustes.paso_tamano);
   const pasoTamano = pasos.find(p => p.id === ajustes.paso_tamano);
   const opTamano = pasoTamano && pasoTamano.opciones.find(o => o.id === tamano);
   const diametro = opTamano && typeof opTamano.diametro_m === 'number' ? opTamano.diametro_m : null;
-  const medidas = calcularMedidas(diametro, ajustes.porcion_esfera ?? 0.625);
+  let medidas = calcularMedidas(diametro, ajustes.porcion_esfera ?? 0.625);
+
+  // Un modelo con geometría propia (ej. los Dormi) reemplaza las medidas
+  // calculadas a partir del diámetro.
+  for (const paso of pasos) {
+    for (const e of elegidasPorPaso.get(paso.id)) {
+      const g = paso.opciones.find(o => o.id === e.id).geometria;
+      if (g) {
+        medidas = {
+          diametro_m: null,
+          altura_m: r2(g.altura_m),
+          area_piso_m2: r2(g.area_piso_m2),
+          area_cubierta_m2: r2(g.area_cubierta_m2),
+          modelo: paso.opciones.find(o => o.id === e.id).nombre,
+        };
+      }
+    }
+  }
+
+  const opLinea = linea && todosLosPasos.find(p => p.id === ajustes.paso_linea).opciones.find(o => o.id === linea);
+  if (opLinea && typeof opLinea.area_piso_min_m2 === 'number' && medidas && !(medidas.area_piso_m2 > opLinea.area_piso_min_m2)) {
+    errores.push({ paso: ajustes.paso_linea, opcion: linea, mensaje: `"${opLinea.nombre}": la superficie de base debe ser mayor a ${opLinea.area_piso_min_m2} m² (este modelo tiene ${medidas.area_piso_m2} m²)` });
+  }
 
   const ctx = {
     linea,
@@ -309,6 +343,7 @@ function cotizar(catalogo, seleccionCliente = {}, opciones = {}) {
     simbolo_moneda: ajustes.simbolo_moneda || ajustes.moneda,
     valido_hasta: validoHasta,
     disponibilidad,
+    pasos_visibles: pasos.map(p => p.id),
   };
 }
 

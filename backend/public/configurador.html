@@ -120,7 +120,9 @@ function cambiar(fn) { fn(); enviado = null; recotizar(); }
 
 function render() {
   const disp = cotizacion.disponibilidad;
-  $('#pasos').replaceChildren(...cat.pasos.map((paso, i) => {
+  // Solo se muestran los pasos que corresponden a la línea elegida.
+  const visibles = cat.pasos.filter(p => !cotizacion.pasos_visibles || cotizacion.pasos_visibles.includes(p.id));
+  $('#pasos').replaceChildren(...visibles.map((paso, i) => {
     const d = disp[paso.id] || {};
     let cuerpo;
     if (paso.tipo === 'cantidades') {
@@ -128,7 +130,7 @@ function render() {
       const total = Object.values(valores).reduce((s, n) => s + n, 0);
       const lim = (cat.ajustes.paso_linea && paso.limites_por_linea && paso.limites_por_linea[seleccion[cat.ajustes.paso_linea]]) || {};
       const max = lim.max_total ?? paso.max_total;
-      cuerpo = h('div', {}, paso.opciones.map(op => {
+      cuerpo = h('div', {}, paso.opciones.filter(op => !(d[op.id] && d[op.id].oculta)).map(op => {
         const n = valores[op.id] || 0;
         const ok = d[op.id] ? d[op.id].disponible : true;
         const set = v => cambiar(() => { const obj = { ...(seleccion[paso.id] || {}) }; if (v > 0) obj[op.id] = v; else delete obj[op.id]; seleccion[paso.id] = obj; });
@@ -140,10 +142,11 @@ function render() {
       }));
     } else {
       const elegidas = paso.tipo === 'unica' ? [seleccion[paso.id]] : (seleccion[paso.id] || []);
-      cuerpo = h('div', { class: 'opciones' + (paso.id === cat.ajustes.paso_linea ? ' lineas' : '') }, paso.opciones.map(op => {
+      cuerpo = h('div', { class: 'opciones' + (paso.id === cat.ajustes.paso_linea ? ' lineas' : '') }, paso.opciones.filter(op => !(d[op.id] && d[op.id].oculta)).map(op => {
         const sel = elegidas.includes(op.id);
         const ok = d[op.id] ? d[op.id].disponible : true;
-        const extra = op.diametro_m ? `≈ ${Math.round(Math.PI * (op.diametro_m / 2) ** 2)} m²` : op.descripcion;
+        const extra = op.diametro_m ? `≈ ${Math.round(Math.PI * (op.diametro_m / 2) ** 2)} m²`
+          : op.geometria ? `${op.descripcion ? op.descripcion + ' · ' : ''}${op.geometria.area_piso_m2} m² · alt. ${op.geometria.altura_m} m` : op.descripcion;
         return h('button', {
           type: 'button', class: 'op' + (sel ? ' sel' : ''), disabled: !ok && !sel, title: ok ? '' : d[op.id].motivo, 'aria-pressed': String(sel),
           onclick: () => cambiar(() => {
@@ -165,7 +168,7 @@ function renderResumen() {
   const c = cotizacion, m = c.medidas;
   const partes = [h('h2', {}, t('boton_cotizar', 'Tu presupuesto'))];
   if (m) partes.push(h('div', { class: 'medidas' },
-    h('div', {}, h('b', {}, `${m.diametro_m} m`), 'diámetro'), h('div', {}, h('b', {}, `${m.altura_m} m`), 'altura'), h('div', {}, h('b', {}, `${Math.round(m.area_piso_m2)} m²`), 'piso')));
+    m.diametro_m ? h('div', {}, h('b', {}, `${m.diametro_m} m`), 'diámetro') : h('div', {}, h('b', {}, m.modelo || '—'), 'modelo'), h('div', {}, h('b', {}, `${m.altura_m} m`), 'altura'), h('div', {}, h('b', {}, `${Math.round(m.area_piso_m2)} m²`), 'piso')));
   for (const i of c.items) {
     if (i.importe === 0) continue;
     partes.push(h('div', { class: 'linea' }, h('span', {}, `${i.cantidad > 1 ? i.cantidad + ' × ' : ''}${i.nombre}`), h('span', {}, i.a_consultar ? 'a consultar' : dinero(i.importe))));

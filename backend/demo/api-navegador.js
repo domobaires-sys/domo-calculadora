@@ -33,7 +33,7 @@
     const hist = leer('historial', []);
     const archivo = `catalogo-v${actual.version}-${Date.now()}.json`;
     hist.unshift({ archivo, version: actual.version, fecha: new Date().toISOString(), datos: actual });
-    escribir('historial', hist.slice(0, 20));
+    escribir('historial', hist.slice(0, 3)); // pocas versiones: el navegador tiene poco espacio
     const guardado = { ...nuevo, version: actual.version + 1, actualizado: new Date().toISOString(), actualizado_por: 'admin' };
     escribir('catalogo', guardado);
     return [200, guardado];

@@ -6,7 +6,8 @@ const crypto = require('node:crypto');
 const { cotizar, seleccionInicial, pasosActivos } = require('./cotizador');
 const { validarCatalogo } = require('./validador');
 
-const MAX_BODY = 512 * 1024;
+const MAX_BODY = 100 * 1024;
+const MAX_BODY_ADMIN = 15 * 1024 * 1024; // el catálogo puede incluir fotos
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const ESTADOS_PEDIDO = ['nuevo', 'contactado', 'presupuestado', 'ganado', 'perdido'];
 
@@ -23,13 +24,13 @@ function enviarJSON(res, status, datos, headers = {}) {
   res.end(JSON.stringify(datos));
 }
 
-function leerCuerpo(req) {
+function leerCuerpo(req, max = MAX_BODY) {
   return new Promise((resolve, reject) => {
     let tam = 0;
     const partes = [];
     req.on('data', c => {
       tam += c.length;
-      if (tam > MAX_BODY) {
+      if (tam > max) {
         reject(new ErrorHttp(413, 'El cuerpo de la solicitud es demasiado grande'));
         req.destroy();
         return;
@@ -166,14 +167,14 @@ function crearApp({ almacen, adminToken, corsOrigin = '*', webhookUrl = null, lo
     ['GET', /^\/api\/admin\/catalogo$/, () => almacen.catalogo(), true],
 
     ['PUT', /^\/api\/admin\/catalogo$/, async ({ req }) => {
-      const r = almacen.guardarCatalogo(await leerCuerpo(req));
+      const r = almacen.guardarCatalogo(await leerCuerpo(req, MAX_BODY_ADMIN));
       if (!r.ok) throw new ErrorHttp(r.conflicto ? 409 : 422, 'No se guardó el catálogo', { errores: r.errores });
       log.info(`[catalogo] guardada versión ${r.catalogo.version}`);
       return r.catalogo;
     }, true],
 
     ['POST', /^\/api\/admin\/catalogo\/validar$/, async ({ req }) => {
-      const cat = await leerCuerpo(req);
+      const cat = await leerCuerpo(req, MAX_BODY_ADMIN);
       const errores = validarCatalogo(cat);
       return { ok: errores.length === 0, errores, ejemplo: errores.length ? null : cotizar(cat, {}) };
     }, true],

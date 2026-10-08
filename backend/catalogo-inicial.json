@@ -41,12 +41,13 @@
         {
           "id": "dormi",
           "nombre": "Dormi",
-          "descripcion": "Domo dormitorio compacto, ideal para glamping o habitación extra · 3–4 m",
+          "descripcion": "Domos dormitorio: modelos CUBIC, ZOMO, KING y ATMO · base de más de 10 m²",
           "precio": {
             "modo": "multiplicador",
             "valor": 1
           },
-          "activo": true
+          "activo": true,
+          "area_piso_min_m2": 10
         },
         {
           "id": "essential",
@@ -81,30 +82,224 @@
       ]
     },
     {
+      "id": "modelo_dormi",
+      "titulo": "Elegí el modelo Dormi",
+      "descripcion": "Cada modelo tiene su propia forma y medidas.",
+      "tipo": "unica",
+      "requerido": true,
+      "activo": true,
+      "orden": 2,
+      "solo_lineas": [
+        "dormi"
+      ],
+      "predeterminada": "cubic",
+      "opciones": [
+        {
+          "id": "cubic",
+          "nombre": "CUBIC",
+          "descripcion": "Líneas rectas y techo facetado.",
+          "geometria": {
+            "area_piso_m2": 10.6,
+            "area_cubierta_m2": 26.0,
+            "altura_m": 2.6
+          },
+          "precio": {
+            "modo": "fijo",
+            "valor": 9800
+          },
+          "activo": true
+        },
+        {
+          "id": "zomo",
+          "nombre": "ZOMO",
+          "descripcion": "Domo compacto de perfil bajo.",
+          "geometria": {
+            "area_piso_m2": 11.3,
+            "area_cubierta_m2": 22.4,
+            "altura_m": 2.7
+          },
+          "precio": {
+            "modo": "fijo",
+            "valor": 10500
+          },
+          "activo": true
+        },
+        {
+          "id": "king",
+          "nombre": "KING",
+          "descripcion": "El más amplio, con ventanal panorámico.",
+          "geometria": {
+            "area_piso_m2": 14.5,
+            "area_cubierta_m2": 30.5,
+            "altura_m": 3.1
+          },
+          "precio": {
+            "modo": "fijo",
+            "valor": 13900
+          },
+          "activo": true
+        },
+        {
+          "id": "atmo",
+          "nombre": "ATMO",
+          "descripcion": "Domo alto con cúpula transparente.",
+          "geometria": {
+            "area_piso_m2": 12.6,
+            "area_cubierta_m2": 27.8,
+            "altura_m": 3.4
+          },
+          "precio": {
+            "modo": "fijo",
+            "valor": 12400
+          },
+          "activo": true
+        }
+      ]
+    },
+    {
+      "id": "ventanal_dormi",
+      "titulo": "Ventanal",
+      "descripcion": "Cada modelo tiene dos opciones de ventanal.",
+      "tipo": "unica",
+      "requerido": true,
+      "activo": true,
+      "orden": 3,
+      "solo_lineas": [
+        "dormi"
+      ],
+      "opciones": [
+        {
+          "id": "ventanal_cubic_1",
+          "nombre": "Ventanal CUBIC 1",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 650
+          },
+          "reglas": {
+            "solo_con": [
+              "cubic"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "ventanal_cubic_2",
+          "nombre": "Ventanal CUBIC 2",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 980
+          },
+          "reglas": {
+            "solo_con": [
+              "cubic"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "ventanal_zomo_1",
+          "nombre": "Ventanal ZOMO 1",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 650
+          },
+          "reglas": {
+            "solo_con": [
+              "zomo"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "ventanal_zomo_2",
+          "nombre": "Ventanal ZOMO 2",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 980
+          },
+          "reglas": {
+            "solo_con": [
+              "zomo"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "ventanal_king_1",
+          "nombre": "Ventanal KING 1",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 650
+          },
+          "reglas": {
+            "solo_con": [
+              "king"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "ventanal_king_2",
+          "nombre": "Ventanal KING 2",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 980
+          },
+          "reglas": {
+            "solo_con": [
+              "king"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "ventanal_atmo_1",
+          "nombre": "Ventanal ATMO 1",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 650
+          },
+          "reglas": {
+            "solo_con": [
+              "atmo"
+            ]
+          },
+          "activo": true
+        },
+        {
+          "id": "ventanal_atmo_2",
+          "nombre": "Ventanal ATMO 2",
+          "descripcion": "Cargá la foto y la descripción desde el panel.",
+          "precio": {
+            "modo": "fijo",
+            "valor": 980
+          },
+          "reglas": {
+            "solo_con": [
+              "atmo"
+            ]
+          },
+          "activo": true
+        }
+      ]
+    },
+    {
       "id": "tamano",
       "titulo": "Tamaño",
       "descripcion": "Diámetro de la base del domo.",
       "tipo": "unica",
       "requerido": true,
       "activo": true,
-      "orden": 2,
+      "orden": 4,
       "predeterminada": "d6",
       "opciones": [
-        {
-          "id": "d3",
-          "nombre": "3 m",
-          "diametro_m": 3,
-          "precio": {
-            "modo": "fijo",
-            "valor": 6500
-          },
-          "reglas": {
-            "solo_lineas": [
-              "dormi"
-            ]
-          },
-          "activo": true
-        },
         {
           "id": "d4",
           "nombre": "4 m",
@@ -115,7 +310,6 @@
           },
           "reglas": {
             "solo_lineas": [
-              "dormi",
               "essential"
             ]
           },
@@ -213,6 +407,11 @@
           },
           "activo": true
         }
+      ],
+      "solo_lineas": [
+        "essential",
+        "confort",
+        "design"
       ]
     },
     {
@@ -222,7 +421,7 @@
       "tipo": "unica",
       "requerido": true,
       "activo": true,
-      "orden": 3,
+      "orden": 5,
       "predeterminada": "pino",
       "opciones": [
         {
@@ -270,7 +469,7 @@
       "tipo": "unica",
       "requerido": true,
       "activo": true,
-      "orden": 4,
+      "orden": 6,
       "predeterminada": "chapa_blanca",
       "opciones": [
         {
@@ -328,7 +527,7 @@
       "tipo": "unica",
       "requerido": true,
       "activo": true,
-      "orden": 5,
+      "orden": 7,
       "predeterminada": "osb_visto",
       "opciones": [
         {
@@ -383,7 +582,7 @@
       "tipo": "unica",
       "requerido": true,
       "activo": true,
-      "orden": 6,
+      "orden": 8,
       "predeterminada": "lana_vidrio",
       "opciones": [
         {
@@ -422,7 +621,7 @@
       "tipo": "cantidades",
       "requerido": true,
       "activo": true,
-      "orden": 7,
+      "orden": 9,
       "min_total": 1,
       "max_total": 3,
       "limites_por_linea": {
@@ -487,7 +686,7 @@
       "tipo": "cantidades",
       "requerido": false,
       "activo": true,
-      "orden": 8,
+      "orden": 10,
       "min_total": 0,
       "max_total": 10,
       "limites_por_linea": {
@@ -580,7 +779,7 @@
       "tipo": "unica",
       "requerido": true,
       "activo": true,
-      "orden": 9,
+      "orden": 11,
       "predeterminada": "sin_portico",
       "opciones": [
         {
@@ -628,6 +827,11 @@
           },
           "activo": true
         }
+      ],
+      "solo_lineas": [
+        "essential",
+        "confort",
+        "design"
       ]
     },
     {
@@ -637,7 +841,7 @@
       "tipo": "unica",
       "requerido": false,
       "activo": true,
-      "orden": 10,
+      "orden": 12,
       "aplica_multiplicador": false,
       "predeterminada": "sin_solar",
       "opciones": [
@@ -692,7 +896,7 @@
       "tipo": "unica",
       "requerido": false,
       "activo": true,
-      "orden": 11,
+      "orden": 13,
       "aplica_multiplicador": false,
       "predeterminada": "sin_biodigestor",
       "opciones": [
@@ -734,7 +938,7 @@
       "tipo": "multiple",
       "requerido": false,
       "activo": true,
-      "orden": 12,
+      "orden": 14,
       "predeterminada": [],
       "opciones": [
         {

@@ -95,3 +95,32 @@ test('precios con IVA incluido', () => {
   assert.equal(q.total, q.subtotal);
   assert.ok(Math.abs(q.neto * 1.21 - q.total) < 0.02);
 });
+
+test('Dormi: cada modelo usa su geometría y oculta los pasos de otras líneas', () => {
+  const q = cotizar(catalogo, { linea: 'dormi', modelo_dormi: 'king', ventanal_dormi: 'ventanal_king_2' });
+  assert.equal(q.ok, true, mensajes(q));
+  assert.equal(q.medidas.area_piso_m2, 14.5);
+  assert.equal(q.medidas.modelo, 'KING');
+  assert.ok(!q.pasos_visibles.includes('tamano'));
+  assert.ok(!q.pasos_visibles.includes('portico'));
+  assert.equal(q.items.some(i => i.paso === 'tamano'), false);
+  const chapa = q.items.find(i => i.opcion === 'chapa_blanca');
+  assert.equal(chapa.metros, 30.5);
+  // En otras líneas los pasos Dormi no aparecen.
+  assert.ok(!cotizar(catalogo, {}).pasos_visibles.includes('modelo_dormi'));
+});
+
+test('Dormi: los ventanales se muestran solo para su modelo', () => {
+  const q = cotizar(catalogo, { linea: 'dormi', modelo_dormi: 'zomo' });
+  const visibles = Object.entries(q.disponibilidad.ventanal_dormi).filter(([, d]) => !d.oculta).map(([id]) => id);
+  assert.deepEqual(visibles, ['ventanal_zomo_1', 'ventanal_zomo_2']);
+  assert.match(mensajes(q), /Falta elegir "Ventanal"/);
+  assert.match(mensajes(cotizar(catalogo, { linea: 'dormi', modelo_dormi: 'zomo', ventanal_dormi: 'ventanal_king_1' })), /solo con KING/);
+});
+
+test('Dormi: la base debe superar la superficie mínima de la línea', () => {
+  const cat = structuredClone(catalogo);
+  cat.pasos.find(p => p.id === 'modelo_dormi').opciones.find(o => o.id === 'cubic').geometria.area_piso_m2 = 9;
+  const q = cotizar(cat, { linea: 'dormi', modelo_dormi: 'cubic', ventanal_dormi: 'ventanal_cubic_1' });
+  assert.match(mensajes(q), /mayor a 10 m²/);
+});

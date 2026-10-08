@@ -5,7 +5,7 @@
 
 const TIPOS_PASO = ['unica', 'multiple', 'cantidades'];
 const MODOS_PRECIO = ['fijo', 'por_m2_piso', 'por_m2_cubierta', 'multiplicador', 'porcentaje', 'consultar'];
-const REGLAS_LISTA = ['solo_lineas', 'solo_tamanos', 'requiere', 'requiere_alguno', 'excluye'];
+const REGLAS_LISTA = ['solo_lineas', 'solo_tamanos', 'requiere', 'requiere_alguno', 'excluye', 'solo_con'];
 const REGLAS_NUMERO = ['min_diametro', 'max_diametro'];
 const ID_VALIDO = /^[a-z0-9_-]{1,60}$/;
 
@@ -114,6 +114,12 @@ function validarCatalogo(cat) {
       }
     }
 
+    if (paso.solo_lineas !== undefined) {
+      if (!Array.isArray(paso.solo_lineas)) err(donde, 'solo_lineas debe ser una lista de líneas');
+      else if (paso === pasoLinea) err(donde, 'el paso de línea no puede depender de la línea');
+      else for (const l of paso.solo_lineas) if (!idsLinea.has(l)) err(donde, `solo_lineas usa "${l}" que no es una línea`);
+    }
+
     const idsDelPaso = new Set(paso.opciones.map(o => o && o.id));
     validarPredeterminada(paso, idsDelPaso, donde, err);
 
@@ -128,6 +134,22 @@ function validarCatalogo(cat) {
         err(dondeOp, 'las opciones de tamaño necesitan diametro_m (número en metros)');
       }
       if (op.max !== undefined && !esEnteroNoNegativo(op.max)) err(dondeOp, 'max debe ser un entero mayor o igual a 0');
+      if (op.imagen !== undefined && (typeof op.imagen !== 'string' || op.imagen.length > 3_000_000)) err(dondeOp, 'la imagen no es válida o es demasiado grande');
+      if (op.area_piso_min_m2 !== undefined && (!esNumero(op.area_piso_min_m2) || op.area_piso_min_m2 < 0)) err(dondeOp, 'area_piso_min_m2 debe ser un número de m²');
+      if (op.geometria !== undefined) {
+        if (!esObjeto(op.geometria)) err(dondeOp, 'geometria debe ser { area_piso_m2, area_cubierta_m2, altura_m }');
+        else for (const campo of ['area_piso_m2', 'area_cubierta_m2', 'altura_m']) {
+          if (!esNumero(op.geometria[campo]) || op.geometria[campo] <= 0) err(dondeOp, `geometria.${campo} debe ser un número mayor a 0`);
+        }
+        // Si el paso es exclusivo de líneas con superficie mínima, el modelo debe cumplirla.
+        for (const l of (Array.isArray(paso.solo_lineas) ? paso.solo_lineas : [])) {
+          const opL = pasoLinea && pasoLinea.opciones.find(o => o && o.id === l);
+          const min = opL && opL.area_piso_min_m2;
+          if (esNumero(min) && esObjeto(op.geometria) && esNumero(op.geometria.area_piso_m2) && !(op.geometria.area_piso_m2 > min)) {
+            err(dondeOp, `la base (${op.geometria.area_piso_m2} m²) debe ser mayor a ${min} m², el mínimo de la línea ${opL.nombre}`);
+          }
+        }
+      }
 
       if (op.reglas !== undefined) {
         if (!esObjeto(op.reglas)) { err(dondeOp, 'reglas debe ser un objeto'); continue; }

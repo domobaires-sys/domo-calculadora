@@ -321,6 +321,14 @@ function editorPaso(paso) {
       campo('Visible', paso, 'activo', { tipo: 'checkbox', porDefecto: true, alCambiar: render }),
       campo('Obligatorio', paso, 'requerido', { tipo: 'checkbox' }),
       esLinea ? null : campo('Aplica recargo de línea', paso, 'aplica_multiplicador', { tipo: 'checkbox', porDefecto: true, ayuda: 'Si se destilda, el multiplicador de la línea no afecta a este paso (útil para equipos de terceros).' })),
+    !esLinea && idsLineas().length ? h('div', {}, h('h3', {}, 'Mostrar este paso solo en estas líneas (ninguna = todas)'),
+      h('div', { class: 'chips' }, idsLineas().map(l => h('label', { class: 'check', style: 'font-weight:400' },
+        h('input', { type: 'checkbox', checked: (paso.solo_lineas || []).includes(l.id), onchange: e => {
+          const lista = (paso.solo_lineas || []).filter(x => x !== l.id);
+          if (e.target.checked) lista.push(l.id);
+          if (lista.length) paso.solo_lineas = lista; else delete paso.solo_lineas;
+          marcar();
+        } }), l.nombre)))) : null,
     paso.tipo === 'cantidades' ? limitesCantidades(paso) : null,
     predeterminada(paso));
 
@@ -447,7 +455,9 @@ function editorOpcion(paso, op, i) {
       campo('Visible para clientes', op, 'activo', { tipo: 'checkbox', porDefecto: true, alCambiar: render }),
       h('label', { class: 'check' }, 'Color', h('input', { type: 'color', value: op.color || '#ffffff', oninput: e => { op.color = e.target.value; marcar(); } }),
         op.color ? h('button', { class: 'btn mini', onclick: () => { delete op.color; render(); } }, 'quitar') : null),
-      campo('Imagen (URL)', op, 'imagen', { vacioComoBorrar: true })),
+      selectorImagen(op)),
+    paso.id === cat.ajustes.paso_linea ? h('div', { class: 'fila' }, campo('Superficie de base mínima (m²)', op, 'area_piso_min_m2', { tipo: 'number', vacioComoBorrar: true, ayuda: 'Los modelos de esta línea deben superar esta superficie.' })) : null,
+    !esTamano && paso.id !== cat.ajustes.paso_linea ? editorGeometria(op) : null,
     idsLineas().length && paso.id !== cat.ajustes.paso_linea && !['multiplicador', 'consultar'].includes(op.precio.modo)
       ? h('details', {}, h('summary', {}, 'Precio distinto según la línea'), precioPorLinea()) : null,
     h('details', {}, h('summary', {}, `Reglas de disponibilidad${cantReglas ? ` (${cantReglas})` : ''}`),
@@ -457,7 +467,52 @@ function editorOpcion(paso, op, i) {
       h('div', { class: 'fila' },
         selectorOpciones('requiere', 'Requiere TODAS estas'),
         selectorOpciones('requiere_alguno', 'Requiere ALGUNA de estas'),
-        selectorOpciones('excluye', 'No combina con'))));
+        selectorOpciones('excluye', 'No combina con'),
+        selectorOpciones('solo_con', 'Mostrar solo si se eligió'))));
+}
+
+// Medidas propias de un modelo (ej. los Dormi): reemplazan las calculadas por diámetro.
+function editorGeometria(op) {
+  const g = op.geometria || {};
+  const campoG = (etiqueta, clave) => h('label', { class: 'campo' }, etiqueta, h('input', { type: 'number', step: 'any', min: 0, value: g[clave] ?? '', oninput: e => {
+    if (e.target.value === '') delete g[clave]; else g[clave] = Number(e.target.value);
+    if (Object.keys(g).length) op.geometria = g; else delete op.geometria;
+    marcar();
+  } }));
+  return h('details', { open: !!op.geometria }, h('summary', {}, 'Medidas propias del modelo'),
+    h('p', { class: 'ayuda' }, 'Completalo solo si esta opción es un modelo con forma propia. Con estas medidas se calculan los precios por m².'),
+    h('div', { class: 'fila' }, campoG('Superficie de base (m²)', 'area_piso_m2'), campoG('Superficie de cubierta (m²)', 'area_cubierta_m2'), campoG('Altura (m)', 'altura_m')));
+}
+
+// Subir una foto: se achica en el navegador (máx. 900 px) y se guarda dentro del catálogo.
+function selectorImagen(op) {
+  const subir = h('input', { type: 'file', accept: 'image/*', hidden: true, onchange: async e => {
+    const archivo = e.target.files[0];
+    if (!archivo) return;
+    try { op.imagen = await achicarImagen(archivo, 900); render(); }
+    catch { mensaje('error', 'No se pudo leer esa imagen. Probá con un JPG o PNG.'); }
+  } });
+  return h('div', { class: 'check', style: 'flex-wrap:wrap' },
+    op.imagen ? h('img', { src: op.imagen, alt: '', style: 'height:56px;border-radius:6px;border:1px solid var(--borde)' }) : null,
+    h('label', { class: 'btn mini' }, op.imagen ? 'Cambiar foto' : 'Subir foto', subir),
+    op.imagen ? h('button', { class: 'btn mini', onclick: () => { delete op.imagen; render(); } }, 'Quitar foto') : null);
+}
+
+function achicarImagen(archivo, max) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const escala = Math.min(1, max / Math.max(img.width, img.height));
+      const lienzo = document.createElement('canvas');
+      lienzo.width = Math.round(img.width * escala);
+      lienzo.height = Math.round(img.height * escala);
+      lienzo.getContext('2d').drawImage(img, 0, 0, lienzo.width, lienzo.height);
+      URL.revokeObjectURL(img.src);
+      resolve(lienzo.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(archivo);
+  });
 }
 
 // ---------- textos ----------

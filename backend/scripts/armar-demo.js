@@ -20,7 +20,8 @@ const js = 'window.__modulos = {};\n'
   + modulo('validador', 'src/validador.js')
   + modulo('cotizador', 'src/cotizador.js')
   + fs.readFileSync(path.join(raiz, 'demo', 'api-navegador.js'), 'utf8');
-fs.writeFileSync(path.join(destino, 'api-demo.js'), js);
+// Se escapan los acentos para que el script se lea bien sin importar la codificación del servidor.
+fs.writeFileSync(path.join(destino, 'api-demo.js'), js.replace(/[\u0080-\uffff]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0')));
 
 const barra = (activa) => `
 <div style="background:#15124f;color:#fff;padding:10px 16px;font:600 13px system-ui,sans-serif;display:flex;gap:16px;flex-wrap:wrap;align-items:center">
