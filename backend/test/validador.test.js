@@ -43,3 +43,11 @@ test('valida geometría de modelos, superficie mínima y pasos por línea', () =
   assert.match(con(c => { paso(c, 'portico').solo_lineas = ['lujo']; }), /solo_lineas usa "lujo"/);
   assert.match(con(c => { paso(c, 'ventanal_dormi').opciones[0].reglas.solo_con = ['nada']; }), /opción "nada" que no existe/);
 });
+
+test('valida la forma 3D', () => {
+  const cat = structuredClone(catalogo);
+  cat.pasos.find(p => p.id === 'modelo_dormi').opciones[0].forma_3d = { poliedro: 'cubo', frecuencia: 9 };
+  const errores = validarCatalogo(cat).join(' ');
+  assert.match(errores, /poliedro/);
+  assert.match(errores, /frecuencia/);
+});

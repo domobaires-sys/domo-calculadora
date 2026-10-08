@@ -180,6 +180,16 @@ function cotizar(catalogo, seleccionCliente = {}, opciones = {}) {
     }
   }
 
+  // Forma para la vista 3D: la general del catálogo, que cualquier opción
+  // elegida (un tamaño, un modelo) puede reemplazar con su propia forma_3d.
+  if (medidas) {
+    const forma = { poliedro: 'icosaedro', frecuencia: 3, porcion: ajustes.porcion_esfera ?? 0.625, ...(ajustes.forma_3d || {}) };
+    for (const paso of pasos) {
+      for (const e of elegidasPorPaso.get(paso.id)) Object.assign(forma, paso.opciones.find(o => o.id === e.id).forma_3d || {});
+    }
+    medidas.forma_3d = forma;
+  }
+
   const opLinea = linea && todosLosPasos.find(p => p.id === ajustes.paso_linea).opciones.find(o => o.id === linea);
   if (opLinea && typeof opLinea.area_piso_min_m2 === 'number' && medidas && !(medidas.area_piso_m2 > opLinea.area_piso_min_m2)) {
     errores.push({ paso: ajustes.paso_linea, opcion: linea, mensaje: `"${opLinea.nombre}": la superficie de base debe ser mayor a ${opLinea.area_piso_min_m2} m² (este modelo tiene ${medidas.area_piso_m2} m²)` });

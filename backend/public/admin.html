@@ -458,6 +458,7 @@ function editorOpcion(paso, op, i) {
       selectorImagen(op)),
     paso.id === cat.ajustes.paso_linea ? h('div', { class: 'fila' }, campo('Superficie de base mínima (m²)', op, 'area_piso_min_m2', { tipo: 'number', vacioComoBorrar: true, ayuda: 'Los modelos de esta línea deben superar esta superficie.' })) : null,
     !esTamano && paso.id !== cat.ajustes.paso_linea ? editorGeometria(op) : null,
+    esTamano ? h('details', { open: !!op.forma_3d }, h('summary', {}, 'Forma en la vista 3D'), editorForma3d(op, 'Forma para este tamaño')) : null,
     idsLineas().length && paso.id !== cat.ajustes.paso_linea && !['multiplicador', 'consultar'].includes(op.precio.modo)
       ? h('details', {}, h('summary', {}, 'Precio distinto según la línea'), precioPorLinea()) : null,
     h('details', {}, h('summary', {}, `Reglas de disponibilidad${cantReglas ? ` (${cantReglas})` : ''}`),
@@ -481,7 +482,26 @@ function editorGeometria(op) {
   } }));
   return h('details', { open: !!op.geometria }, h('summary', {}, 'Medidas propias del modelo'),
     h('p', { class: 'ayuda' }, 'Completalo solo si esta opción es un modelo con forma propia. Con estas medidas se calculan los precios por m².'),
-    h('div', { class: 'fila' }, campoG('Superficie de base (m²)', 'area_piso_m2'), campoG('Superficie de cubierta (m²)', 'area_cubierta_m2'), campoG('Altura (m)', 'altura_m')));
+    h('div', { class: 'fila' }, campoG('Superficie de base (m²)', 'area_piso_m2'), campoG('Superficie de cubierta (m²)', 'area_cubierta_m2'), campoG('Altura (m)', 'altura_m')),
+    editorForma3d(op, 'Forma en la vista 3D de este modelo'));
+}
+
+// Forma de la estructura en la vista 3D que ve el cliente.
+function editorForma3d(obj, titulo, { general = false } = {}) {
+  const f = obj.forma_3d || {};
+  const guardar = () => { if (Object.keys(f).length) obj.forma_3d = f; else delete obj.forma_3d; marcar(); };
+  const sel = (etiqueta, clave, opciones, ayuda) => {
+    const s = h('select', { onchange: e => { if (e.target.value === '') delete f[clave]; else f[clave] = clave === 'poliedro' ? e.target.value : Number(e.target.value); guardar(); } },
+      Object.entries(opciones).map(([v, t]) => h('option', { value: v }, t)));
+    s.value = f[clave] ?? '';
+    return h('label', { class: 'campo' }, etiqueta, s, ayuda ? h('span', { class: 'ayuda', style: 'margin:0;font-weight:400' }, ayuda) : null);
+  };
+  const igual = general ? {} : { '': 'Igual que el resto' };
+  return h('div', {}, h('h3', {}, titulo),
+    h('div', { class: 'fila' },
+      sel('Figura base', 'poliedro', { ...igual, icosaedro: 'Icosaedro (domo clásico)', octaedro: 'Octaedro (más cuadrado)' }),
+      sel('Frecuencia', 'frecuencia', { ...igual, 1: '1V', 2: '2V', 3: '3V', 4: '4V', 5: '5V', 6: '6V' }, 'Más frecuencia = más barras y más redondo.'),
+      sel('Porción de esfera', 'porcion', { ...(general ? { '': 'La de arriba' } : igual), 0.375: '3/8', 0.5: '1/2', 0.625: '5/8', 0.75: '3/4' })));
 }
 
 // Subir una foto: se achica en el navegador (máx. 900 px) y se guarda dentro del catálogo.
@@ -554,7 +574,8 @@ function vistaAjustes() {
     h('div', { class: 'fila' },
       campo('Porción de esfera', a, 'porcion_esfera', { tipo: 'number', ayuda: '0.5 = 1/2, 0.625 = 5/8, 0.75 = 3/4. Se usa para la altura y los m² de cubierta.' }),
       campo('Paso que define la línea', a, 'paso_linea', { opciones: { '': '— ninguno —', ...unicas }, vacioComoBorrar: true, alCambiar: render }),
-      campo('Paso que define el tamaño', a, 'paso_tamano', { opciones: { '': '— ninguno —', ...unicas }, vacioComoBorrar: true, alCambiar: render })));
+      campo('Paso que define el tamaño', a, 'paso_tamano', { opciones: { '': '— ninguno —', ...unicas }, vacioComoBorrar: true, alCambiar: render })),
+    editorForma3d(a, 'Vista 3D: forma general de los domos', { general: true }));
 }
 
 // ---------- pedidos ----------

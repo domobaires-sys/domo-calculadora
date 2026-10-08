@@ -35,6 +35,7 @@ function validarCatalogo(cat) {
     if (!esNumero(ajustes.iva_porcentaje) || ajustes.iva_porcentaje < 0 || ajustes.iva_porcentaje > 100) {
       err('ajustes.iva_porcentaje', 'debe ser un número entre 0 y 100');
     }
+    if (ajustes.forma_3d !== undefined) validarForma3d(ajustes.forma_3d, 'ajustes', err);
     if (!esNumero(ajustes.porcion_esfera) || ajustes.porcion_esfera <= 0 || ajustes.porcion_esfera > 1) {
       err('ajustes.porcion_esfera', 'debe ser un número mayor a 0 y hasta 1 (ej. 0.625 = 5/8)');
     }
@@ -136,6 +137,7 @@ function validarCatalogo(cat) {
       if (op.max !== undefined && !esEnteroNoNegativo(op.max)) err(dondeOp, 'max debe ser un entero mayor o igual a 0');
       if (op.imagen !== undefined && (typeof op.imagen !== 'string' || op.imagen.length > 3_000_000)) err(dondeOp, 'la imagen no es válida o es demasiado grande');
       if (op.area_piso_min_m2 !== undefined && (!esNumero(op.area_piso_min_m2) || op.area_piso_min_m2 < 0)) err(dondeOp, 'area_piso_min_m2 debe ser un número de m²');
+      if (op.forma_3d !== undefined) validarForma3d(op.forma_3d, dondeOp, err);
       if (op.geometria !== undefined) {
         if (!esObjeto(op.geometria)) err(dondeOp, 'geometria debe ser { area_piso_m2, area_cubierta_m2, altura_m }');
         else for (const campo of ['area_piso_m2', 'area_cubierta_m2', 'altura_m']) {
@@ -205,6 +207,14 @@ function validarPredeterminada(paso, ids, donde, err) {
       if (!esEnteroNoNegativo(n)) err(donde, `la cantidad predeterminada de "${id}" debe ser un entero`);
     }
   }
+}
+
+// Forma de la vista 3D: { poliedro, frecuencia, porcion }, todos opcionales.
+function validarForma3d(f, donde, err) {
+  if (!esObjeto(f)) return err(donde, 'forma_3d debe ser { poliedro, frecuencia, porcion }');
+  if (f.poliedro !== undefined && !['icosaedro', 'octaedro'].includes(f.poliedro)) err(donde, 'forma_3d.poliedro debe ser "icosaedro" u "octaedro"');
+  if (f.frecuencia !== undefined && !(Number.isInteger(f.frecuencia) && f.frecuencia >= 1 && f.frecuencia <= 6)) err(donde, 'forma_3d.frecuencia debe ser un entero de 1 a 6');
+  if (f.porcion !== undefined && !(esNumero(f.porcion) && f.porcion > 0.2 && f.porcion <= 0.9)) err(donde, 'forma_3d.porcion debe ser un número entre 0.2 y 0.9');
 }
 
 module.exports = { validarCatalogo, TIPOS_PASO, MODOS_PRECIO, REGLAS_LISTA, REGLAS_NUMERO };

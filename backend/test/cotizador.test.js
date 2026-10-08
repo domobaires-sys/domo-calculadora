@@ -9,7 +9,7 @@ const mensajes = q => q.errores.map(e => e.mensaje).join(' | ');
 test('la configuración predeterminada es válida y calcula medidas', () => {
   const q = cotizar(catalogo, {});
   assert.equal(q.ok, true, mensajes(q));
-  assert.deepEqual(q.medidas, { diametro_m: 6, altura_m: 3.75, area_piso_m2: 28.27, area_cubierta_m2: 70.69 });
+  assert.deepEqual(q.medidas, { diametro_m: 6, altura_m: 3.75, area_piso_m2: 28.27, area_cubierta_m2: 70.69, forma_3d: { poliedro: 'icosaedro', frecuencia: 3, porcion: 0.625 } });
   assert.equal(q.total, Math.round((q.neto + q.iva) * 100) / 100);
 });
 
@@ -123,4 +123,10 @@ test('Dormi: la base debe superar la superficie mínima de la línea', () => {
   cat.pasos.find(p => p.id === 'modelo_dormi').opciones.find(o => o.id === 'cubic').geometria.area_piso_m2 = 9;
   const q = cotizar(cat, { linea: 'dormi', modelo_dormi: 'cubic', ventanal_dormi: 'ventanal_cubic_1' });
   assert.match(mensajes(q), /mayor a 10 m²/);
+});
+
+test('vista 3D: cada modelo Dormi tiene su forma y los domos grandes más frecuencia', () => {
+  const formas = ['cubic', 'zomo', 'king', 'atmo'].map(m => JSON.stringify(cotizar(catalogo, { linea: 'dormi', modelo_dormi: m }).medidas.forma_3d));
+  assert.equal(new Set(formas).size, 4);
+  assert.equal(cotizar(catalogo, { tamano: 'd12' }).medidas.forma_3d.frecuencia, 4);
 });

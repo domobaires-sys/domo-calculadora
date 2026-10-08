@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DOMO · Configurador</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <style>
   :root { --azul: #15124f; --acento: #4f46e5; --suave: #eef0ff; --borde: #dfe2ee; --gris: #6b7085; --fondo: #f1f2f8; --rojo: #c62828; }
   * { box-sizing: border-box; }
@@ -53,12 +55,16 @@
   .boton.sec { background: #fff; color: var(--acento); border: 1.5px solid var(--acento); }
   .exito { background: #e8f5e9; color: #2e7d32; border-radius: 8px; padding: 12px; }
   .oculto { position: absolute; left: -9999px; }
+  .vista3d { background: linear-gradient(#e9ecf8, #fff); border-radius: 14px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(20,20,60,.06); position: relative; overflow: hidden; height: 340px; }
+  .vista3d canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  .vista3d .info3d { position: absolute; left: 12px; bottom: 10px; font-size: 12px; color: var(--gris); pointer-events: none; }
+  @media (max-width: 860px) { .vista3d { height: 260px; } }
 </style>
 </head>
 <body>
 <div class="contenedor">
   <header class="portada"><h1 id="titulo">Configurá tu domo</h1><p id="subtitulo"></p></header>
-  <main id="pasos"></main>
+  <main><div class="vista3d" id="vista3d" hidden><div class="info3d" id="info3d"></div></div><div id="pasos"></div></main>
   <aside><div class="resumen" id="resumen"></div></aside>
 </div>
 <script>
@@ -162,7 +168,151 @@ function render() {
       paso.id === cat.ajustes.paso_tamano && t('nota_tamanos') ? h('p', { class: 'nota' }, t('nota_tamanos')) : null);
   }));
   renderResumen();
+  vista3d.mostrar(cotizacion.medidas);
 }
+
+// ---------- Vista 3D de la estructura ----------
+// Arma la cúpula geodésica (paneles + barras) con la forma de la medida
+// elegida: poliedro, frecuencia y porción salen del catálogo (forma_3d).
+const vista3d = (() => {
+  let escena, camara, render3d, controles, grupo, ultima = '';
+  const caja = $('#vista3d');
+
+  function iniciar() {
+    if (escena) return true;
+    if (!window.THREE || !THREE.OrbitControls) return false; // sin internet: no se muestra
+    caja.hidden = false;
+    escena = new THREE.Scene();
+    camara = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
+    render3d = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    render3d.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    caja.prepend(render3d.domElement);
+    controles = new THREE.OrbitControls(camara, render3d.domElement);
+    controles.enableDamping = true;
+    controles.autoRotate = true;
+    controles.autoRotateSpeed = 1.2;
+    controles.maxPolarAngle = Math.PI / 2 - 0.02;
+    controles.enablePan = false;
+    render3d.domElement.addEventListener('pointerdown', () => { controles.autoRotate = false; });
+    escena.add(new THREE.HemisphereLight(0xffffff, 0x8a8f9e, 0.9));
+    const sol = new THREE.DirectionalLight(0xffffff, 0.6);
+    sol.position.set(8, 14, 6);
+    escena.add(sol);
+    const piso = new THREE.Mesh(new THREE.CircleGeometry(60, 64), new THREE.MeshBasicMaterial({ color: 0xe3e8da }));
+    piso.rotation.x = -Math.PI / 2;
+    piso.position.y = -0.01;
+    escena.add(piso);
+    new ResizeObserver(ajustarTamano).observe(caja);
+    ajustarTamano();
+    (function animar() { requestAnimationFrame(animar); controles.update(); render3d.render(escena, camara); })();
+    return true;
+  }
+
+  function ajustarTamano() {
+    const w = caja.clientWidth, h = caja.clientHeight;
+    if (!w || !h) return;
+    render3d.setSize(w, h, false);
+    camara.aspect = w / h;
+    camara.updateProjectionMatrix();
+  }
+
+  function poliedro(tipo) {
+    if (tipo === 'octaedro') {
+      return { v: [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]],
+        c: [[0, 2, 4], [0, 4, 3], [0, 3, 5], [0, 5, 2], [1, 4, 2], [1, 3, 4], [1, 5, 3], [1, 2, 5]] };
+    }
+    const t = (1 + Math.sqrt(5)) / 2, L = Math.hypot(1, t);
+    const v = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]]
+      // Se gira para que un vértice quede arriba (cúpula con pentágono en la cima).
+      .map(([x, y, z]) => [x, (y + z * t) / L, (-y * t + z) / L]);
+    return { v, c: [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
+      [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]] };
+  }
+
+  // Divide cada cara en triángulos y los proyecta sobre una esfera de radio 1.
+  function geodesica(tipo, frec) {
+    const base = poliedro(tipo), puntos = [], caras = [], indice = new Map();
+    const punto = p => {
+      const l = Math.hypot(...p), q = p.map(x => x / l), k = q.map(x => x.toFixed(5)).join();
+      if (!indice.has(k)) { indice.set(k, puntos.length); puntos.push(q); }
+      return indice.get(k);
+    };
+    for (const [a, b, c] of base.c) {
+      const A = base.v[a], B = base.v[b], C = base.v[c], g = [];
+      for (let i = 0; i <= frec; i++) {
+        g[i] = [];
+        for (let j = 0; j <= frec - i; j++) g[i][j] = punto([0, 1, 2].map(n => A[n] + (B[n] - A[n]) * i / frec + (C[n] - A[n]) * j / frec));
+      }
+      for (let i = 0; i < frec; i++) for (let j = 0; j < frec - i; j++) {
+        caras.push([g[i][j], g[i + 1][j], g[i][j + 1]]);
+        if (j < frec - i - 1) caras.push([g[i + 1][j], g[i + 1][j + 1], g[i][j + 1]]);
+      }
+    }
+    return { puntos, caras };
+  }
+
+  function mostrar(m) {
+    if (!m || !m.forma_3d || !iniciar()) return;
+    const f = m.forma_3d;
+    const diametro = m.diametro_m || 2 * Math.sqrt(m.area_piso_m2 / Math.PI);
+    const clave = JSON.stringify([f, diametro, m.altura_m]);
+    if (clave === ultima) return;
+    ultima = clave;
+
+    const { puntos, caras } = geodesica(f.poliedro, f.frecuencia);
+    // Se queda con la parte de arriba de la esfera según la porción (5/8, 1/2...).
+    const corte = 1 - 2 * f.porcion - 1e-3;
+    const visibles = caras.filter(c => c.every(i => puntos[i][1] >= corte));
+    const usados = [...new Set(visibles.flat())];
+    // Los nodos del borde se apoyan todos al mismo nivel para que la base quede plana.
+    const usoArista = new Map();
+    for (const [a, b, c] of visibles) for (const [p, q] of [[a, b], [b, c], [c, a]]) { const k = p < q ? p + ',' + q : q + ',' + p; usoArista.set(k, (usoArista.get(k) || 0) + 1); }
+    const borde = new Set([...usoArista].filter(([, n]) => n === 1).flatMap(([k]) => k.split(',').map(Number)));
+    const yMin = Math.max(...[...borde].map(i => puntos[i][1]));
+    for (const i of borde) puntos[i] = [puntos[i][0], yMin, puntos[i][2]];
+    const radioBase = Math.max(...usados.filter(i => puntos[i][1] - yMin < 1e-3).map(i => Math.hypot(puntos[i][0], puntos[i][2])));
+    // Escala para que coincidan el diámetro de la base y la altura reales.
+    const ex = (diametro / 2) / (radioBase || 1), ey = m.altura_m / (1 - yMin);
+    const pos = puntos.map(([x, y, z]) => [x * ex, (y - yMin) * ey, z * ex]);
+
+    if (grupo) { escena.remove(grupo); grupo.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); }); }
+    grupo = new THREE.Group();
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(visibles.flatMap(c => c.flatMap(i => pos[i])), 3));
+    geo.computeVertexNormals();
+    grupo.add(new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ color: 0xf4efe6, transparent: true, opacity: 0.55, side: THREE.DoubleSide, flatShading: true, depthWrite: false })));
+
+    // Barras de la estructura: un cilindro por cada arista.
+    const aristas = new Set();
+    for (const [a, b, c] of visibles) for (const [p, q] of [[a, b], [b, c], [c, a]]) aristas.add(p < q ? p + ',' + q : q + ',' + p);
+    const grosor = Math.max(0.035, diametro / 160);
+    const matBarra = new THREE.MeshLambertMaterial({ color: 0x8b5a2b });
+    const arriba = new THREE.Vector3(0, 1, 0);
+    for (const k of aristas) {
+      const [p, q] = k.split(',').map(i => new THREE.Vector3(...pos[i]));
+      const largo = p.distanceTo(q);
+      const barra = new THREE.Mesh(new THREE.CylinderGeometry(grosor, grosor, largo, 6), matBarra);
+      barra.position.copy(p).add(q).multiplyScalar(0.5);
+      barra.quaternion.setFromUnitVectors(arriba, q.clone().sub(p).normalize());
+      grupo.add(barra);
+    }
+    const matNodo = new THREE.MeshLambertMaterial({ color: 0x3b3f58 });
+    for (const i of usados) {
+      const nodo = new THREE.Mesh(new THREE.SphereGeometry(grosor * 1.8, 8, 6), matNodo);
+      nodo.position.set(...pos[i]);
+      grupo.add(nodo);
+    }
+    escena.add(grupo);
+
+    const tam = Math.max(diametro, m.altura_m);
+    camara.position.set(tam * 1.4, tam * 0.8, tam * 1.4);
+    controles.target.set(0, m.altura_m * 0.4, 0);
+    $('#info3d').textContent = `${m.modelo ? m.modelo + ' · ' : ''}${aristas.size} barras · ${visibles.length} paneles · arrastrá para girar`;
+  }
+
+  return { mostrar };
+})();
 
 function renderResumen() {
   const c = cotizacion, m = c.medidas;
