@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--CABEZA-->
+<title>Configurador DOMO BAIRES</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<!--/CABEZA-->
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<!--CUERPO-->
+<div class="envoltura">
+  <header class="cabecera">
+    <div class="marca">DOMO BAIRES<small>Configurador · prototipo interno</small></div>
+    <span class="sello" id="sello-version">Prototipo privado · datos sin validar</span>
+  </header>
+  <nav aria-label="Etapas del configurador"><ol class="etapas" id="etapas"></ol></nav>
+  <div id="avisos" aria-live="polite"></div>
+  <main id="contenido"></main>
+</div>
+<div class="barra" id="barra"></div>
+<div id="modal"></div>
+<!--/CUERPO-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="reglas.js"></script>
+<script src="visor.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
