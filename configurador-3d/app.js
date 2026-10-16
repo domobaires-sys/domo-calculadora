@@ -1,42 +1,83 @@
 /*
- * Interfaz del configurador. Un único estado (`estado`) alimenta los controles,
- * el visor 3D, el resumen y la solicitud. Toda regla vive en reglas.js.
+ * Interfaz del configurador de DOMO BAIRES.
+ *
+ * Un único estado de configuración (`estado`, ver reglas.js) alimenta el
+ * visor 3D, las cuatro etapas, el resumen y la solicitud. Las reglas viven
+ * en reglas.js; acá solo se dibuja y se responde a lo que hace la persona.
+ *
+ * Nada se envía a ningún servicio: la solicitud se prepara para copiarla.
+ * En el navegador solo se guarda (si se puede) el código de la configuración
+ * y la etapa, nunca datos personales.
  */
 (function () {
   'use strict';
   const R = window.DomoReglas;
-  const CLAVE_GUARDADO = 'domo-configurador-guardado';
-  const ETAPAS = ['Elegir modelo', 'Personalizar diseño', 'Modalidad de entrega', 'Revisar y solicitar'];
+  const CLAVE_LOCAL = 'domo-configurador-v1';
+  const ETAPAS = [
+    { id: 'modelo', nombre: 'Modelo' },
+    { id: 'diseno', nombre: 'Diseño' },
+    { id: 'entrega', nombre: 'Entrega' },
+    { id: 'solicitud', nombre: 'Solicitud' },
+  ];
+  const VISTAS = [
+    { id: 'frente', texto: 'Frente' },
+    { id: 'tres_cuartos', texto: '3/4' },
+    { id: 'lateral', texto: 'Lateral' },
+    { id: 'arriba', texto: 'Desde arriba', corto: 'Arriba' },
+  ];
+  const ARMADO = !!document.getElementById('catalogo-datos');
 
   let cat = null;
   let estado = null;
   let etapa = 0;
-  let visor = null;
-  let falloVisor = null;
-  let noche = false;
-  let vista = 'exterior';
+  let alcanzada = 0;
   let avisos = [];
-  let solicitud = null;
-  const tactil = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  let visor = null;
+  let fallo3d = null;          // 'sin_libreria' | 'sin_webgl' | 'contexto_perdido'
+  let estado3d = 'cargando';   // 'cargando' | 'listo' | 'faltante' | 'error'
+  let relojCarga = 0;
+  let vistaElegida = 'tres_cuartos';
+  let solicitud = null;        // texto preparado
+  let errores = {};
+  const form = { nombre: '', contacto: '', localidad: '', comentario: '', consentimiento: false };
 
+  // ---------- utilidades ----------
   const $ = (id) => document.getElementById(id);
   function h(tag, attrs, ...hijos) {
     const el = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs || {})) {
       if (v === null || v === undefined || v === false) continue;
-      if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
       else if (k === 'class') el.className = v;
-      else if (k === 'html') el.innerHTML = v;
+      else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+      else if (k === 'value') el.value = v;
+      else if (k === 'checked') el.checked = !!v;
       else el.setAttribute(k, v === true ? '' : v);
     }
-    for (const c of hijos.flat()) if (c !== null && c !== undefined && c !== false) el.append(c.nodeType ? c : String(c));
+    for (const c of hijos.flat(3)) if (c !== null && c !== undefined && c !== false) el.append(c.nodeType ? c : String(c));
     return el;
   }
-  const guardar = (fn) => { try { return fn(); } catch (e) { return null; } };
+  const local = {
+    leer() { try { return JSON.parse(window.localStorage.getItem(CLAVE_LOCAL) || 'null'); } catch (e) { return null; } },
+    guardar(v) { try { window.localStorage.setItem(CLAVE_LOCAL, JSON.stringify(v)); } catch (e) { /* sin almacenamiento: no pasa nada */ } },
+  };
+  const reducido = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const esCelular = () => !!(window.matchMedia && window.matchMedia('(max-width: 899px)').matches);
+  function temaOscuro() {
+    const t = document.documentElement.getAttribute('data-theme');
+    if (t === 'dark') return true;
+    if (t === 'light') return false;
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+  const modelo = () => R.modeloDe(cat, estado.modelo);
+  function miniaturaDe(m, archivoId) {
+    const a = (m.archivos_3d || []).find((x) => x.id === (archivoId || m.modelo_3d));
+    return (a && a.miniatura) || null;
+  }
 
-  // ---------- carga ----------
+  // ---------- inicio ----------
   async function cargarCatalogo() {
-    const incrustado = document.getElementById('catalogo-datos');
+    const incrustado = $('catalogo-datos');
     if (incrustado) return JSON.parse(incrustado.textContent);
     const r = await fetch('catalogo.json', { cache: 'no-store' });
     if (!r.ok) throw new Error('No se pudo leer el catálogo (' + r.status + ').');
@@ -47,454 +88,517 @@
     try {
       cat = await cargarCatalogo();
     } catch (e) {
-      $('contenido').replaceChildren(h('div', { class: 'aviso error', role: 'alert' },
-        h('div', {}, h('strong', {}, 'No se pudo cargar el catálogo. '), e.message),
-        h('button', { class: 'btn', onclick: () => location.reload() }, 'Reintentar')));
+      $('etapa').replaceChildren(h('div', { class: 'aviso aviso-error', role: 'alert' },
+        h('p', {}, 'No se pudo cargar el configurador. ', e.message),
+        h('button', { type: 'button', class: 'boton', onclick: () => location.reload() }, 'Reintentar')));
       return;
     }
-    $('sello-version').textContent = `Prototipo privado · catálogo ${cat.version_catalogo} · datos sin validar`;
     estado = R.crearEstado(cat);
-
-    const hash = (location.hash || '').slice(1);
-    const compartida = R.decodificar(hash);
-    if (compartida) {
-      const r = R.recuperar(cat, compartida);
+    const codigo = decodeURIComponent((location.hash || '').slice(1));
+    const guardado = local.leer();
+    if (codigo) {
+      const r = R.recuperar(cat, codigo);
       estado = r.estado;
-      etapa = 1;
-      avisos.push({ tipo: 'info', texto: 'Estás viendo una copia de una configuración compartida. Lo que cambies acá no modifica la original.', lista: r.avisos });
-    } else {
-      const guardada = guardar(() => JSON.parse(localStorage.getItem(CLAVE_GUARDADO)));
-      if (guardada && guardada.estado) {
-        avisos.push({
-          tipo: 'info', id: 'recuperar',
-          texto: `Tenés una configuración guardada en este dispositivo (${guardada.fecha ? new Date(guardada.fecha).toLocaleDateString('es-AR') : 'sin fecha'}).`,
-          acciones: [
-            { texto: 'Recuperarla', fn: () => recuperarGuardada(guardada) },
-            { texto: 'Descartar', fn: () => { guardar(() => localStorage.removeItem(CLAVE_GUARDADO)); quitarAviso('recuperar'); } },
-          ],
-        });
+      if (r.valido) {
+        etapa = estado.modalidad ? 3 : 1;
+        avisos.push({ id: 'compartida', texto: 'Abriste una configuración compartida. Podés cambiar lo que quieras.', lista: r.avisos });
+      } else {
+        avisos.push({ id: 'codigo', tipo: 'error', texto: r.avisos[0] });
+      }
+    } else if (guardado && guardado.codigo) {
+      const r = R.recuperar(cat, guardado.codigo);
+      if (r && r.valido) {
+        estado = r.estado;
+        etapa = Math.max(0, Math.min(ETAPAS.length - 1, guardado.etapa | 0));
       }
     }
+    alcanzada = etapa;
+    montarVisor();
+    escucharTema();
     render();
+    sincronizar3d();
   }
 
-  function recuperarGuardada(g) {
-    const r = R.recuperar(cat, g.estado);
-    estado = r.estado;
-    etapa = 1;
-    quitarAviso('recuperar');
-    if (r.avisos.length) avisos.push({ tipo: 'pendiente', texto: 'Recuperamos tu configuración con estos ajustes:', lista: r.avisos });
-    render();
-    enfocar();
+  // ---------- visor 3D ----------
+  function montarVisor() {
+    fallo3d = null;
+    if (!window.DomoVisor) { fallo3d = 'sin_libreria'; return; }
+    visor = window.DomoVisor.crear($('visor'), { alEstado: alEstado3d, soloIncrustados: ARMADO });
+    if (visor) visor.tema(temaOscuro());
   }
 
-  function quitarAviso(id) { avisos = avisos.filter((a) => a.id !== id); renderAvisos(); }
-
-  // ---------- acciones ----------
-  function intentar(accion, enfoque) {
-    const r = R.aplicar(cat, estado, accion);
-    if (r.cambios.length) {
-      confirmarCambios(r.cambios, () => aplicarResultado(r, enfoque));
+  function alEstado3d(e) {
+    if (e === 'sin_libreria' || e === 'sin_webgl' || e === 'contexto_perdido') {
+      fallo3d = e;
+      estado3d = 'error';
     } else {
-      aplicarResultado(r, enfoque);
+      estado3d = e;
+    }
+    clearTimeout(relojCarga);
+    if (e === 'cargando') {
+      // El indicador aparece solo si la carga se demora: así no parpadea.
+      relojCarga = setTimeout(renderVisorUI, 160);
+      return;
+    }
+    renderVisorUI();
+  }
+
+  function sincronizar3d() {
+    if (!visor) { renderVisorUI(); return; }
+    const a = R.archivo3d(cat, estado);
+    if (!a) { estado3d = 'faltante'; renderVisorUI(); return; }
+    visor.describir(descripcion3d());
+    visor.mostrar({ id: a.id, url: a.archivo, color: R.colorMaterial(cat, estado) }).then(() => renderVisorUI());
+    renderVisorUI();
+  }
+
+  function descripcion3d() {
+    const m = modelo();
+    const diseno = (m.opciones || []).map((o) => (R.valorDe(o, estado.opciones[o.id]) || {}).nombre).filter(Boolean);
+    const med = R.medidasPrincipales(R.medidasDe(cat, estado));
+    return `Modelo 3D de ${[m.nombre, ...diseno].join(', ')}${med ? `; ${med} de ancho por fondo por alto` : ''}. Arrastrá para girarlo; con la rueda o con dos dedos te acercás.`;
+  }
+
+  function escucharTema() {
+    const aplicar = () => { if (visor) visor.tema(temaOscuro()); };
+    if (window.matchMedia) {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      if (mq.addEventListener) mq.addEventListener('change', aplicar); else if (mq.addListener) mq.addListener(aplicar);
+    }
+    if (window.MutationObserver) new MutationObserver(aplicar).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  }
+
+  function pantallaCompleta() {
+    const el = document.querySelector('.escenario');
+    const activo = document.fullscreenElement || document.webkitFullscreenElement;
+    try {
+      const p = activo
+        ? (document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen())
+        : (el.requestFullscreen ? el.requestFullscreen() : el.webkitRequestFullscreen());
+      if (p && p.catch) p.catch(() => avisar('pantalla', 'Este navegador no permitió la pantalla completa.'));
+    } catch (e) {
+      avisar('pantalla', 'Este navegador no permitió la pantalla completa.');
     }
   }
+  const hayPantallaCompleta = () => !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+  document.addEventListener('fullscreenchange', () => renderVisorUI());
+  document.addEventListener('webkitfullscreenchange', () => renderVisorUI());
 
-  function aplicarResultado(r, enfoque) {
+  function renderVisorUI() {
+    if (!cat) return;
+    const m = modelo();
+    const med = R.medidasDe(cat, estado);
+    const principales = R.medidasPrincipales(med);
+    const a = R.archivo3d(cat, estado);
+    const opcionTrama = (m.opciones || []).find((o) => o.tipo === 'modelo_3d');
+    const trama = opcionTrama ? R.valorDe(opcionTrama, estado.opciones[opcionTrama.id]) : null;
+
+    $('visor-rotulo').replaceChildren(
+      h('span', { class: 'rotulo-nombre' }, m.nombre, trama ? h('span', { class: 'rotulo-variante' }, ` · ${trama.nombre}`) : null),
+      principales ? h('span', { class: 'rotulo-medidas', title: 'Ancho × fondo × alto, según el modelo 3D de DOMO' },
+        h('span', { class: 'solo-lectores' }, 'Ancho por fondo por alto: '), principales) : null);
+
+    const listo = !fallo3d && estado3d === 'listo' && visor;
+    const capa = $('visor-capa');
+    if (fallo3d || estado3d === 'faltante' || estado3d === 'error') {
+      const textos = {
+        sin_webgl: ['Tu navegador no puede mostrar el 3D', 'Te mostramos una foto de referencia de DOMO. Podés seguir configurando igual.'],
+        sin_libreria: ['No se pudo cargar el visor 3D', 'Puede ser la conexión. Mientras tanto, esta es una foto de referencia de DOMO.'],
+        contexto_perdido: ['El visor 3D se detuvo', 'El dispositivo liberó memoria gráfica. Esta es una foto de referencia de DOMO.'],
+        faltante: ['Modelo 3D en preparación', 'Lo estamos armando desde el archivo de DOMO. Mientras tanto, esta es una foto de referencia.'],
+        error: ['No se pudo abrir el modelo 3D', 'Probá de nuevo. Mientras tanto, esta es una foto de referencia de DOMO.'],
+      };
+      const [titulo, texto] = textos[fallo3d || estado3d] || textos.error;
+      capa.className = 'visor-capa visor-capa-aviso';
+      capa.replaceChildren(h('div', { class: 'visor-aviso', role: 'status' },
+        m.imagen && m.imagen.archivo ? h('img', { src: m.imagen.archivo, alt: m.imagen.alt || `Foto de referencia de ${m.nombre}` }) : null,
+        h('div', { class: 'visor-aviso-texto' },
+          h('p', { class: 'visor-aviso-titulo' }, titulo),
+          h('p', {}, texto),
+          (estado3d === 'error' && !fallo3d) || fallo3d === 'contexto_perdido'
+            ? h('button', { type: 'button', class: 'boton boton-chico', onclick: reintentar3d }, 'Reintentar') : null)));
+    } else if (estado3d === 'cargando' && !(visor && visor.modeloActual && a && visor.modeloActual === a.id)) {
+      capa.className = 'visor-capa visor-capa-carga';
+      capa.replaceChildren(h('div', { class: 'visor-carga', role: 'status' }, h('span', { class: 'visor-carga-barra', 'aria-hidden': 'true' }), 'Cargando modelo 3D'));
+    } else {
+      capa.className = 'visor-capa';
+      capa.replaceChildren();
+    }
+
+    const puertas = listo ? visor.cantidadPuertas : 0;
+    const abiertas = listo && visor.puertasAbiertas;
+    const plural = puertas > 1 ? 'puertas' : 'puerta';
+    const enPantalla = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    $('visor-acciones').replaceChildren(
+      puertas ? h('button', {
+        type: 'button', class: 'boton-visor', 'aria-pressed': String(!!abiertas), id: 'boton-puerta',
+        onclick: () => { visor.alternarPuertas(); renderVisorUI(); },
+      }, abiertas ? `Cerrar ${plural}` : `Abrir ${plural}`) : null,
+      listo && hayPantallaCompleta() ? h('button', { type: 'button', class: 'boton-visor', id: 'boton-pantalla', onclick: pantallaCompleta, 'aria-label': enPantalla ? 'Salir de pantalla completa' : 'Pantalla completa' },
+        h('span', { class: 'texto-largo' }, enPantalla ? 'Salir de pantalla completa' : 'Pantalla completa'),
+        h('span', { class: 'texto-corto', 'aria-hidden': 'true' }, enPantalla ? 'Salir' : 'Ampliar')) : null);
+
+    $('visor-vistas').replaceChildren(...(listo ? [
+      ...VISTAS.map((v) => h('button', {
+        type: 'button', class: 'boton-visor', 'aria-pressed': String(vistaElegida === v.id), 'aria-label': v.texto,
+        onclick: () => { vistaElegida = v.id; visor.vista(v.id); renderVisorUI(); },
+      }, v.corto ? [h('span', { class: 'texto-largo' }, v.texto), h('span', { class: 'texto-corto', 'aria-hidden': 'true' }, v.corto)] : v.texto)),
+      h('button', { type: 'button', class: 'boton-visor', onclick: () => { visor.vista('centrar'); } }, 'Centrar'),
+    ] : []));
+  }
+
+  function reintentar3d() {
+    if (fallo3d === 'contexto_perdido' && visor) { visor.destruir(); visor = null; }
+    if (!visor) montarVisor();
+    estado3d = 'cargando';
+    sincronizar3d();
+  }
+
+  // ---------- acciones ----------
+  function cambiar(accion) {
+    const antes = R.archivo3d(cat, estado);
+    const r = R.aplicar(cat, estado, accion);
     estado = r.estado;
     solicitud = null;
-    if (r.cambios.length) avisos = avisos.filter((a) => a.id !== 'cambios').concat({ tipo: 'info', id: 'cambios', texto: 'Se aplicaron estos ajustes:', lista: r.cambios.map((c) => c.texto) });
+    if (r.cambios.length) avisar('cambios', r.cambios.join(' '));
+    guardarLocal();
     render();
-    if (visor && enfoque) visor.mirar(enfoque);
+    const despues = R.archivo3d(cat, estado);
+    if (!antes || !despues || antes.id !== despues.id) sincronizar3d();
+    else if (visor) { visor.colorear(R.colorMaterial(cat, estado)); visor.describir(descripcion3d()); }
   }
 
-  function confirmarCambios(cambios, alAceptar) {
-    const cerrar = () => { $('modal').replaceChildren(); };
-    const aceptar = h('button', { class: 'btn principal', onclick: () => { cerrar(); alAceptar(); } }, 'Aplicar el cambio');
-    const caja = h('div', { class: 'modal-fondo', onclick: (e) => { if (e.target === caja) cerrar(); } },
-      h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'modal-titulo', onkeydown: (e) => { if (e.key === 'Escape') cerrar(); } },
-        h('h3', { id: 'modal-titulo' }, 'Esta elección cambia otras'),
-        h('ul', {}, cambios.map((c) => h('li', {}, c.texto))),
-        h('div', { class: 'acciones' }, aceptar, h('button', { class: 'btn', onclick: cerrar }, 'Cancelar'))));
-    $('modal').replaceChildren(caja);
-    aceptar.focus();
-  }
-
-  function irAEtapa(n) {
+  function irA(n, opciones) {
+    const op = opciones || {};
+    if (n === 3 && etapa === 2 && !estado.modalidad && !op.forzar) {
+      errores = { modalidad: 'Elegí una modalidad de entrega para seguir.' };
+      render();
+      const e = $('error-modalidad');
+      if (e) e.focus();
+      return;
+    }
+    errores = {};
     etapa = Math.max(0, Math.min(ETAPAS.length - 1, n));
+    alcanzada = Math.max(alcanzada, etapa);
+    guardarLocal();
     render();
-    window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    // Al cambiar de etapa: arriba de todo (el 3D a la vista), salvo el formulario en celular.
+    if (esCelular() && etapa === 3) {
+      const p = document.querySelector('.panel');
+      if (p) p.scrollIntoView({ block: 'start', behavior: reducido() ? 'auto' : 'smooth' });
+    } else {
+      window.scrollTo({ top: 0, behavior: reducido() ? 'auto' : 'smooth' });
+    }
+    const t = document.querySelector('#etapa h1');
+    if (t) t.focus({ preventScroll: true });
   }
 
-  function reiniciar() {
-    confirmarCambios([{ texto: 'Se borran todas las elecciones y volvés a la elección de modelo. Lo guardado en este dispositivo no se toca.' }], () => {
-      estado = R.crearEstado(cat);
-      solicitud = null;
-      avisos = avisos.filter((a) => a.id !== 'cambios');
-      if (visor) visor.restablecer();
-      irAEtapa(0);
-    });
+  function guardarLocal() {
+    const codigo = R.codificar(estado);
+    local.guardar({ codigo, etapa });
+    try { history.replaceState(null, '', '#' + codigo); } catch (e) { /* el visor de la página puede no permitirlo */ }
   }
 
-  function guardarEnDispositivo() {
-    const ok = guardar(() => { localStorage.setItem(CLAVE_GUARDADO, JSON.stringify({ estado, fecha: new Date().toISOString() })); return true; });
-    avisos = avisos.filter((a) => a.id !== 'guardado').concat({
-      tipo: ok ? 'info' : 'error', id: 'guardado',
-      texto: ok ? 'Guardado en este navegador. No es una cuenta: si borrás los datos del navegador o usás otro equipo, no va a estar.' : 'Este navegador no permite guardar. Usá "Copiar código" para conservarla.',
-    });
+  function avisar(id, texto, tipo) {
+    avisos = avisos.filter((a) => a.id !== id).concat({ id, texto, tipo: tipo || 'info' });
     renderAvisos();
   }
 
-  async function copiarTexto(texto, boton) {
-    const original = boton.textContent;
+  async function copiar(texto, boton, seleccionable) {
+    const original = boton.dataset.texto || boton.textContent;
+    boton.dataset.texto = original;
+    let ok = false;
     try {
-      await navigator.clipboard.writeText(texto);
-      boton.textContent = 'Copiado';
-    } catch (e) {
-      boton.textContent = 'Seleccioná y copiá';
-      const pre = boton.closest('.bloque') && boton.closest('.bloque').querySelector('pre, code');
-      if (pre) { const rango = document.createRange(); rango.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(rango); }
+      if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(texto); ok = true; }
+    } catch (e) { ok = false; }
+    if (!ok && seleccionable) {
+      // Respaldo: dejar el texto seleccionado para copiarlo a mano.
+      const rango = document.createRange();
+      rango.selectNodeContents(seleccionable);
+      const s = window.getSelection();
+      s.removeAllRanges();
+      s.addRange(rango);
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
     }
-    setTimeout(() => { boton.textContent = original; }, 2200);
+    boton.textContent = ok ? 'Copiado' : 'Seleccionado: copialo';
+    boton.classList.toggle('copiado', ok);
+    clearTimeout(boton._reloj);
+    boton._reloj = setTimeout(() => { boton.textContent = original; boton.classList.remove('copiado'); }, 2400);
   }
 
   // ---------- render ----------
   function render() {
     renderEtapas();
     renderAvisos();
-    const cont = $('contenido');
-    if (etapa === 0) {
-      if (visor) { visor.destruir(); visor = null; }
-      cont.replaceChildren(vistaModelos());
-    } else {
-      let mesa = cont.querySelector('.mesa');
-      if (!mesa) {
-        mesa = h('div', { class: 'mesa' }, h('div', { class: 'visor', id: 'visor' }), h('div', { class: 'panel', id: 'panel' }));
-        cont.replaceChildren(mesa);
-        montarVisor();
-      }
-      renderVisorUI();
-      $('panel').replaceChildren(...panelEtapa());
-    }
-    renderBarra();
+    const cont = $('etapa');
+    const vistas = [etapaModelo, etapaDiseno, etapaEntrega, etapaSolicitud];
+    cont.replaceChildren(...[].concat(vistas[etapa]()).filter(Boolean));
+    cont.dataset.etapa = ETAPAS[etapa].id;
+    renderPie();
+    renderVisorUI();
   }
 
   function renderEtapas() {
-    $('etapas').replaceChildren(...ETAPAS.map((t, i) => h('li', {},
-      h('button', { type: 'button', 'aria-current': i === etapa ? 'step' : null, onclick: () => irAEtapa(i), 'aria-label': `Etapa ${i + 1}: ${t}` }, t))));
+    $('etapas').replaceChildren(...ETAPAS.map((e, i) => {
+      const actual = i === etapa;
+      const disponible = i <= alcanzada;
+      return h('li', { class: (i < etapa ? 'hecha' : '') + (actual ? ' actual' : '') },
+        h('button', {
+          type: 'button', 'aria-current': actual ? 'step' : null, disabled: !disponible,
+          onclick: () => { if (disponible && !actual) irA(i, { forzar: true }); },
+        }, h('span', { class: 'etapa-num' }, String(i + 1).padStart(2, '0')), h('span', { class: 'etapa-nombre' }, e.nombre)));
+    }));
   }
 
   function renderAvisos() {
-    $('avisos').replaceChildren(...avisos.map((a) => h('div', { class: `aviso ${a.tipo}`, role: a.tipo === 'error' ? 'alert' : null },
-      h('div', {}, a.texto, a.lista && a.lista.length ? h('ul', {}, a.lista.map((x) => h('li', {}, x))) : null),
-      h('div', { class: 'acciones' },
-        (a.acciones || []).map((ac) => h('button', { class: 'btn', onclick: ac.fn }, ac.texto)),
-        !a.acciones ? h('button', { class: 'btn texto', onclick: () => { avisos = avisos.filter((x) => x !== a); renderAvisos(); } }, 'Cerrar') : null))));
+    $('avisos').replaceChildren(...avisos.map((a) => h('div', { class: `aviso aviso-${a.tipo || 'info'}`, role: a.tipo === 'error' ? 'alert' : 'status' },
+      h('div', { class: 'aviso-texto' }, a.texto, a.lista && a.lista.length ? h('ul', {}, a.lista.map((x) => h('li', {}, x))) : null),
+      h('button', { type: 'button', class: 'aviso-cerrar', 'aria-label': 'Cerrar aviso', onclick: () => { avisos = avisos.filter((x) => x !== a); renderAvisos(); } }, 'Cerrar'))));
   }
 
-  function vistaModelos() {
-    return h('section', { 'aria-labelledby': 'titulo-modelos' },
-      h('h1', { id: 'titulo-modelos' }, 'Elegí tu modelo'),
-      h('p', { class: 'bajada' }, 'Tres modelos de la colección inicial. Después vas a poder personalizar el diseño, elegir cómo te lo entregamos y pedir el presupuesto. No hace falta crear una cuenta.'),
-      h('div', { class: 'modelos' }, cat.modelos.map((m) => {
-        const elegido = estado.modelo === m.id;
-        return h('button', {
-          type: 'button', class: 'tarjeta-modelo', 'aria-pressed': elegido ? 'true' : 'false',
-          onclick: () => {
-            if (estado.modelo !== m.id) {
-              const r = R.aplicar(cat, estado, { tipo: 'modelo', modelo: m.id });
-              if (r.cambios.length) return confirmarCambios(r.cambios, () => { aplicarResultado(r); irAEtapa(1); });
-              estado = r.estado;
-            }
-            irAEtapa(1);
-          },
-        },
-        m.imagen && m.imagen.archivo
-          ? h('img', { class: 'imagen-modelo', src: m.imagen.archivo, alt: `Imagen de referencia de ${m.nombre}`, loading: 'lazy' })
-          : h('div', { class: 'imagen-pendiente' }, `Imagen de ${m.nombre} pendiente: falta la referencia aprobada`),
-        h('h3', {}, m.nombre),
-        h('dl', { class: 'datos' },
-          h('dt', {}, 'Superficie'), h('dd', {}, m.superficie_m2 ? `${m.superficie_m2} m²` : 'pendiente'),
-          h('dt', {}, 'Altura'), h('dd', {}, m.altura_m ? `${m.altura_m} m` : 'pendiente'),
-          h('dt', {}, 'Uso previsto'), h('dd', {}, m.uso || 'pendiente'),
-          h('dt', {}, 'Variantes'), h('dd', {}, String(m.variantes.length)),
-          h('dt', {}, 'Diferencias'), h('dd', {}, m.diferencias.length ? m.diferencias.join(' · ') : 'a confirmar por DOMO BAIRES')),
-        h('span', { class: 'btn principal' }, elegido ? `Seguir con ${m.nombre}` : `Configurar ${m.nombre}`));
-      })));
+  function cabeza(antetitulo, titulo, bajada) {
+    return h('header', { class: 'etapa-cabeza' },
+      h('p', { class: 'antetitulo' }, antetitulo),
+      h('h1', { tabindex: '-1' }, titulo),
+      bajada ? h('p', { class: 'bajada' }, bajada) : null);
   }
 
-  // ---------- visor ----------
-  function montarVisor() {
-    const cont = $('visor');
-    falloVisor = null;
-    visor = window.DomoVisor ? window.DomoVisor.crearVisor(cont, { alError: (motivo) => { falloVisor = motivo; renderVisorUI(); } }) : null;
-    if (!visor && !falloVisor) falloVisor = 'sin_libreria';
-    if (visor) {
-      if (tactil) visor.activarToque(false);
-      visor.setNoche(noche);
-    }
-  }
-
-  function datosVisor() {
-    const term = R.categoriaDe(cat, 'terminacion').opciones.find((o) => o.id === estado.sel.terminacion);
-    const m = R.modeloDe(cat, estado.modelo);
-    return { forma: m.geometria && m.geometria.forma, color: term && term.color, aberturas: R.aberturas(cat, estado), portico: estado.sel.portico === 'portico_recto' };
-  }
-
-  function renderVisorUI() {
-    const cont = $('visor');
-    if (!cont) return;
-    cont.querySelectorAll('.visor-rotulo, .visor-herramientas, .visor-tocar, .visor-estado, .nota-vista').forEach((n) => n.remove());
-    const m = R.modeloDe(cat, estado.modelo);
-    if (falloVisor) {
-      const textos = {
-        sin_libreria: 'No se pudo cargar el visor 3D (sin conexión o bloqueado).',
-        sin_webgl: 'Este dispositivo o navegador no muestra 3D.',
-        contexto_perdido: 'El visor 3D se detuvo (el dispositivo liberó memoria gráfica).',
-      };
-      cont.append(h('div', { class: 'visor-estado', role: 'status' }, h('div', {},
-        h('p', {}, h('strong', {}, textos[falloVisor] || 'El visor 3D no está disponible.')),
-        h('p', {}, 'Podés seguir configurando y pedir el presupuesto igual: tu selección se mantiene.'),
-        h('button', { class: 'btn', onclick: () => { if (visor) { visor.destruir(); visor = null; } montarVisor(); renderVisorUI(); } }, 'Reintentar'))));
-      return;
-    }
-    visor.construir(datosVisor());
-    const ab = R.aberturas(cat, estado);
-    const aprox = m.geometria && m.geometria.estado === 'aproximado';
-    visor.describir(`${aprox ? 'Aproximación' : 'Maqueta interna'} de ${m.nombre}: ${ab.filter((a) => a.tipo === 'puerta').length} puerta, ${ab.filter((a) => a.tipo === 'ventana').length} ventanas${estado.sel.portico === 'portico_recto' ? ', con pórtico' : ''}. ${aprox ? 'Dibujada a partir de fotos, sin medidas.' : 'No representa la forma real del modelo.'}`);
-    cont.append(h('div', { class: 'visor-rotulo' },
-      h('span', { class: 'chip maqueta' }, aprox ? `Aproximación de ${m.nombre} a partir de fotos: sin medidas` : `Maqueta interna: no es la forma real de ${m.nombre}`),
-      h('span', { class: 'chip vista' }, vista === 'planta' ? 'Vista superior del 3D · sin cotas' : 'Vista exterior')));
-    const boton = (texto, activo, fn, extra) => h('button', Object.assign({ type: 'button', 'aria-pressed': activo === null ? null : String(!!activo), onclick: fn }, extra || {}), texto);
-    cont.append(h('div', { class: 'visor-herramientas', role: 'toolbar', 'aria-label': 'Controles de visualización (no cambian el presupuesto)' },
-      boton('Exterior', vista === 'exterior', () => { vista = 'exterior'; visor.cambiarVista('exterior'); renderVisorUI(); }),
-      boton('Planta', vista === 'planta', () => { vista = 'planta'; visor.cambiarVista('planta'); renderVisorUI(); }),
-      boton('Interior', false, null, { disabled: true, title: 'Sin contenido interior aprobado todavía' }),
-      boton(noche ? 'Día' : 'Noche', null, () => { noche = !noche; visor.setNoche(noche); renderVisorUI(); }),
-      boton('Centrar', null, () => { vista = 'exterior'; visor.restablecer(); renderVisorUI(); }),
-      document.fullscreenEnabled ? boton('Pantalla completa', null, () => {
-        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-        else cont.requestFullscreen().catch(() => {});
-      }) : null));
-    if (tactil) {
-      const activo = cont.classList.contains('activo');
-      cont.append(h('button', { type: 'button', class: 'visor-tocar', onclick: () => { visor.activarToque(!activo); renderVisorUI(); } }, activo ? 'Listo, volver a desplazar' : 'Tocar para girar el 3D'));
-    }
-  }
-
-  // ---------- panel ----------
-  function panelEtapa() {
-    if (etapa === 1) return panelDiseno();
-    if (etapa === 2) return panelModalidad();
-    return panelRevision();
-  }
-
-  function encabezado(titulo, bajada) {
-    return h('div', {}, h('h1', {}, titulo), bajada ? h('p', { class: 'bajada' }, bajada) : null);
-  }
-
-  function pill(estadoDato) {
-    if (!estadoDato || estadoDato === 'confirmado') return null;
-    const txt = { pendiente: 'sin validar', supuesto: 'supuesto', ejemplo: 'ejemplo' }[estadoDato] || estadoDato;
-    return h('span', { class: 'estado-pill', title: cat.estados[estadoDato] || '' }, txt);
-  }
-
-  function grupoRadio(titulo, opciones, seleccion, alElegir, extra) {
-    const id = 'g-' + titulo.toLowerCase().replace(/[^a-z]+/g, '-');
-    const botones = opciones.map((o, i) => {
-      const ev = o.evaluacion || { disponible: true, cambios: [] };
-      const marcado = o.id === seleccion;
-      return h('button', {
-        type: 'button', role: 'radio', class: 'opcion', 'aria-checked': String(marcado),
-        'aria-disabled': ev.disponible ? null : 'true', tabindex: marcado || (!seleccion && i === 0) ? '0' : '-1',
-        'aria-describedby': ev.disponible ? null : `${id}-${o.id}`,
-        onclick: () => { if (ev.disponible && !marcado) alElegir(o.id); },
-        onkeydown: (e) => moverFoco(e),
-      },
-      o.color ? h('span', { class: 'muestra', style: `background:${o.color}`, 'aria-hidden': 'true' }) : null,
-      h('span', { class: 'nombre' }, o.nombre, ' ', pill(o.estado)),
-      o.detalle ? h('span', { class: 'detalle' }, o.detalle) : null,
-      !ev.disponible ? h('span', { class: 'detalle', id: `${id}-${o.id}` }, ev.motivo) : null,
-      ev.disponible && ev.cambios && ev.cambios.length && !marcado ? h('span', { class: 'cambia' }, `Cambia ${ev.cambios.length === 1 ? 'otra elección' : ev.cambios.length + ' elecciones'}`) : null);
-    });
-    return h('section', { class: 'bloque', 'aria-labelledby': id },
-      h('h2', { id }, titulo),
-      extra && extra.ayuda ? h('p', { class: 'ayuda' }, extra.ayuda) : null,
-      h('div', { class: 'opciones', role: 'radiogroup', 'aria-labelledby': id }, botones),
-      extra && extra.despues);
-  }
-
-  function moverFoco(e) {
-    const claves = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
-    if (!(e.key in claves)) return;
-    e.preventDefault();
-    const grupo = [...e.currentTarget.parentElement.querySelectorAll('[role="radio"]')];
-    const i = grupo.indexOf(e.currentTarget);
-    const sig = grupo[(i + claves[e.key] + grupo.length) % grupo.length];
-    sig.focus();
-  }
-
-  function panelDiseno() {
-    const m = R.modeloDe(cat, estado.modelo);
-    const v = R.varianteDe(m, estado.variante);
-    const bloques = [encabezado(`Personalizá ${m.nombre}`, 'Cada cambio se ve en el 3D, que es una aproximación hecha con fotos y sin medidas. Las opciones marcadas "sin validar" todavía no están confirmadas por DOMO BAIRES.')];
-
-    bloques.push(grupoRadio('Variante', m.variantes.map((x) => ({ id: x.id, nombre: x.nombre, detalle: x.descripcion, estado: x.estado })), estado.variante,
-      (id) => intentar({ tipo: 'variante', variante: id }),
-      { ayuda: v.tipo === 'cerrada' ? `${v.nombre} es un conjunto cerrado: lo que trae aparece bloqueado y explica por qué.` : 'Los nombres de las variantes son provisorios.' }));
-
-    for (const c of cat.categorias) {
-      const opts = c.opciones.map((o) => ({ id: o.id, nombre: o.nombre, color: o.color, estado: o.estado, detalle: o.descripcion || R.textoPrecio(cat, o.precio), evaluacion: R.evaluarOpcion(cat, estado, c.id, o.id) }));
-      const enfoque = c.posicion === 'ventana' ? (m.posiciones.ventana || [])[0] : c.posicion === 'puerta' || c.id === 'portico' ? 'frente' : null;
-      if (c.control === 'multiple') {
-        bloques.push(h('section', { class: 'bloque', 'aria-labelledby': 'g-' + c.id },
-          h('h2', { id: 'g-' + c.id }, c.nombre),
-          c.ayuda ? h('p', { class: 'ayuda' }, c.ayuda) : null,
-          h('div', { class: 'opciones' }, opts.map((o) => {
-            const marcado = (estado.sel[c.id] || []).includes(o.id);
-            return h('button', {
-              type: 'button', role: 'checkbox', class: 'opcion', 'aria-checked': String(marcado), 'aria-disabled': o.evaluacion.disponible ? null : 'true',
-              onclick: () => { if (o.evaluacion.disponible) intentar({ tipo: 'elegir', categoria: c.id, opcion: o.id }); },
-            }, h('span', { class: 'nombre' }, o.nombre, ' ', pill(o.estado)), h('span', { class: 'detalle' }, o.detalle),
-            h('span', { class: 'detalle' }, `Precio: ${R.textoPrecio(cat, c.opciones.find((x) => x.id === o.id).precio).toLowerCase()}`));
-          }))));
-        continue;
-      }
-      let despues = null;
-      if (c.cantidad) {
-        const lim = R.limiteCantidad(cat, estado, c.id);
-        const n = estado.cant[c.id] || 0;
-        const cambiar = (k) => intentar({ tipo: 'cantidad', categoria: c.id, cantidad: n + k }, k > 0 ? (m.posiciones.ventana || [])[n] : (m.posiciones.ventana || [])[Math.max(0, n - 2)]);
-        despues = h('div', { class: 'contador' },
-          h('span', { id: `cant-${c.id}` }, c.cantidad.nombre),
-          h('button', { type: 'button', 'aria-label': `Quitar una (${c.cantidad.nombre})`, disabled: n <= lim.min, onclick: () => cambiar(-1) }, '−'),
-          h('output', { 'aria-live': 'polite', 'aria-labelledby': `cant-${c.id}` }, String(n)),
-          h('button', { type: 'button', 'aria-label': `Agregar una (${c.cantidad.nombre})`, disabled: n >= lim.max, onclick: () => cambiar(1) }, '+'),
-          h('span', { class: 'limites' }, lim.fija !== null ? `Fijo en ${v.nombre}` : `De ${lim.min} a ${lim.max} en ${m.nombre} (posiciones: ${(m.posiciones.ventana || []).slice(0, lim.max).join(', ')})`));
-      }
-      bloques.push(grupoRadio(c.nombre, opts, estado.sel[c.id], (id) => intentar({ tipo: 'elegir', categoria: c.id, opcion: id }, enfoque),
-        { ayuda: c.control === 'muestras' ? 'Colores aproximados en pantalla.' : null, despues }));
-    }
-    bloques.push(h('div', { class: 'acciones' },
-      h('button', { class: 'btn', onclick: guardarEnDispositivo }, 'Guardar en este dispositivo'),
-      h('button', { class: 'btn texto', onclick: reiniciar }, 'Empezar de nuevo')));
-    return bloques;
-  }
-
-  function panelModalidad() {
-    const m = R.modeloDe(cat, estado.modelo);
+  // Etapa 1: modelo
+  function etapaModelo() {
     return [
-      encabezado('¿Cómo querés recibirlo?', 'La modalidad cambia el alcance de la entrega, no el diseño que armaste.'),
-      grupoRadio('Modalidad de entrega', cat.modalidades.filter((x) => x.id in m.modalidades).map((x) => ({
-        id: x.id, nombre: x.nombre, estado: m.modalidades[x.id] === 'confirmado' ? null : 'pendiente',
-        detalle: m.modalidades[x.id] === 'confirmado' ? x.descripcion : `Disponibilidad para ${m.nombre} e inclusiones a confirmar por DOMO BAIRES.`,
-      })), estado.modalidad, (id) => intentar({ tipo: 'modalidad', modalidad: id })),
-      estado.modalidad ? (() => {
-        const x = cat.modalidades.find((y) => y.id === estado.modalidad);
-        return h('section', { class: 'bloque' }, h('h2', {}, `Qué incluye ${x.nombre}`),
-          x.incluye.length ? h('ul', {}, x.incluye.map((i) => h('li', {}, i))) : h('p', { class: 'ayuda' }, 'Pendiente: DOMO BAIRES todavía no confirmó qué incluye y qué no. Se va a detallar en el presupuesto.'),
-          x.excluye.length ? h('div', {}, h('strong', {}, 'No incluye: '), x.excluye.join(', ')) : null);
-      })() : null,
+      cabeza(`Paso 1 de 4 · ${ETAPAS[0].nombre}`, 'Elegí tu Dormi', 'Tres modelos, cada uno igual a su archivo de diseño. Girá el 3D para verlo por todos lados.'),
+      h('div', { class: 'modelos', role: 'group', 'aria-label': 'Modelos' }, cat.modelos.map((m) => {
+        const elegido = m.id === estado.modelo;
+        const pred = (m.archivos_3d || []).find((a) => a.id === m.modelo_3d);
+        const med = pred && pred.medidas;
+        const principales = R.medidasPrincipales(med);
+        const mini = miniaturaDe(m);
+        return h('button', {
+          type: 'button', class: 'tarjeta-modelo', 'aria-pressed': String(elegido), 'data-modelo': m.id,
+          onclick: () => { if (!elegido) cambiar({ tipo: 'modelo', modelo: m.id }); },
+        },
+        h('span', { class: 'tm-imagen' + (mini ? '' : ' tm-foto') },
+          h('img', {
+            src: mini || m.imagen.archivo, alt: '', loading: 'lazy', width: '640', height: '480',
+            onerror: (ev) => { const img = ev.currentTarget; if (img.dataset.foto) return; img.dataset.foto = '1'; img.src = m.imagen.archivo; img.parentElement.classList.add('tm-foto'); },
+          })),
+        h('span', { class: 'tm-texto' },
+          h('span', { class: 'tm-nombre' }, m.nombre),
+          h('span', { class: 'tm-desc' }, m.descripcion),
+          h('span', { class: 'tm-medidas' }, principales
+            ? [h('span', { class: 'tm-principal' }, principales), med.piso_area_m2 ? h('span', { class: 'tm-sup' }, ` · ${R.textoMedida('piso_area_m2', med.piso_area_m2)}`) : null]
+            : 'Modelo 3D en preparación')),
+        h('span', { class: 'marca-seleccion', 'aria-hidden': 'true' }));
+      })),
+      h('p', { class: 'nota' }, 'Medidas exteriores totales (ancho × fondo × alto) y superficie de piso, según el modelo 3D de DOMO.'),
     ];
   }
 
-  function panelRevision() {
+  // Etapa 2: diseño
+  function etapaDiseno() {
+    const m = modelo();
+    const ops = m.opciones || [];
+    const partes = [cabeza(`Paso 2 de 4 · ${ETAPAS[1].nombre}`, m.nombre,
+      ops.length ? 'Elegí la trama y el color de los paneles. Cada cambio se ve en el 3D.' : null)];
+    if (!ops.length) {
+      partes.push(h('div', { class: 'diseno-unico' },
+        h('p', { class: 'diseno-unico-titulo' }, 'Diseño único'),
+        h('p', {}, `${m.nombre} se fabrica tal como lo ves en el 3D: no tiene variantes de diseño.`)));
+    }
+    for (const o of ops) {
+      const idTitulo = `op-${o.id}`;
+      const valor = estado.opciones[o.id];
+      if (o.tipo === 'modelo_3d') {
+        partes.push(h('section', { class: 'grupo', 'aria-labelledby': idTitulo },
+          h('h2', { id: idTitulo, class: 'grupo-titulo' }, o.nombre),
+          h('div', { class: 'tramas', role: 'group', 'aria-labelledby': idTitulo }, o.valores.map((v) => {
+            const mini = miniaturaDe(m, v.archivo_3d);
+            return h('button', {
+              type: 'button', class: 'opcion opcion-trama', 'aria-pressed': String(valor === v.id), 'data-valor': v.id,
+              onclick: () => { if (valor !== v.id) cambiar({ tipo: 'opcion', opcion: o.id, valor: v.id }); },
+            },
+            mini ? h('span', { class: 'ot-imagen' }, h('img', { src: mini, alt: '', width: '640', height: '480', onerror: (ev) => { ev.currentTarget.parentElement.remove(); } })) : null,
+            h('span', { class: 'ot-texto' }, h('span', { class: 'opcion-nombre' }, v.nombre), v.detalle ? h('span', { class: 'opcion-detalle' }, v.detalle) : null),
+            h('span', { class: 'marca-seleccion', 'aria-hidden': 'true' }));
+          }))));
+      } else if (o.tipo === 'color_material') {
+        const a = R.archivo3d(cat, estado);
+        const natural = a && a.colores && a.colores[o.material];
+        partes.push(h('section', { class: 'grupo', 'aria-labelledby': idTitulo },
+          h('h2', { id: idTitulo, class: 'grupo-titulo' }, o.nombre),
+          o.ayuda ? h('p', { class: 'ayuda' }, o.ayuda) : null,
+          h('div', { class: 'colores', role: 'group', 'aria-labelledby': idTitulo }, o.valores.map((v) => {
+            const hex = v.hex || natural || null;
+            return h('button', {
+              type: 'button', class: 'muestra', 'aria-pressed': String(valor === v.id), 'data-valor': v.id,
+              onclick: () => { if (valor !== v.id) cambiar({ tipo: 'opcion', opcion: o.id, valor: v.id }); },
+            },
+            h('span', { class: 'muestra-color' + (hex ? '' : ' muestra-sin-dato'), style: hex ? { backgroundColor: hex } : null, 'aria-hidden': 'true' }),
+            h('span', { class: 'muestra-nombre' }, v.nombre));
+          }))));
+      }
+    }
+    partes.push(ficha(m));
+    partes.push(h('figure', { class: 'referencia' },
+      h('img', { src: m.imagen.archivo, alt: m.imagen.alt || `Foto de referencia de ${m.nombre}`, loading: 'lazy' }),
+      h('figcaption', {}, 'Foto de referencia')));
+    return partes;
+  }
+
+  function ficha(m) {
+    const comp = R.composicion(cat, estado);
+    const med = R.medidasDe(cat, estado);
+    const principales = R.medidasPrincipales(med);
+    const extra = R.listaMedidas(cat, med);
+    return h('section', { class: 'ficha', 'aria-labelledby': 'ficha-titulo' },
+      h('h2', { id: 'ficha-titulo', class: 'grupo-titulo' }, 'Qué incluye'),
+      h('dl', { class: 'tabla' }, comp.map((c) => h('div', { class: 'fila' + (c.pendiente ? ' fila-pendiente' : '') },
+        h('dt', {}, c.nombre), h('dd', {}, c.texto)))),
+      h('h2', { class: 'grupo-titulo' }, 'Medidas'),
+      principales
+        ? h('dl', { class: 'tabla tabla-cifras' },
+          h('div', { class: 'fila' }, h('dt', {}, 'Ancho × fondo × alto'), h('dd', {}, principales)),
+          extra.map((x) => h('div', { class: 'fila' }, h('dt', {}, x.etiqueta), h('dd', {}, x.texto))))
+        : h('p', { class: 'ayuda' }, 'Modelo 3D en preparación: las medidas aparecen cuando esté listo.'),
+      h('p', { class: 'nota' }, 'Según el modelo 3D de DOMO.'));
+  }
+
+  // Etapa 3: entrega
+  function etapaEntrega() {
+    const m = modelo();
+    return [
+      cabeza(`Paso 3 de 4 · ${ETAPAS[2].nombre}`, '¿Cómo lo querés recibir?', `Elegí la modalidad para tu ${m.nombre}.`),
+      h('div', { class: 'modalidades', role: 'group', 'aria-label': 'Modalidades de entrega' }, cat.modalidades.map((x) => {
+        const elegido = estado.modalidad === x.id;
+        return h('button', {
+          type: 'button', class: 'opcion opcion-entrega', 'aria-pressed': String(elegido), 'data-modalidad': x.id,
+          onclick: () => { errores = {}; if (!elegido) cambiar({ tipo: 'modalidad', modalidad: x.id }); },
+        },
+        h('span', { class: 'oe-texto' },
+          h('span', { class: 'opcion-nombre' }, x.nombre),
+          h('span', { class: 'opcion-detalle' }, x.descripcion),
+          h('span', { class: 'precio' }, R.textoPrecio(m.precios && m.precios[x.id]))),
+        h('span', { class: 'marca-seleccion', 'aria-hidden': 'true' }));
+      })),
+      errores.modalidad ? h('p', { class: 'error-campo', id: 'error-modalidad', tabindex: '-1', role: 'alert' }, errores.modalidad) : null,
+      h('p', { class: 'nota' }, 'Los precios los confirma DOMO BAIRES en el presupuesto.'),
+    ];
+  }
+
+  // Etapa 4: solicitud
+  function etapaSolicitud() {
     const res = R.resumen(cat, estado);
-    const errores = R.validar(cat, estado);
-    const img = visor ? visor.capturar() : null;
-    const bloques = [encabezado('Revisá y pedí tu presupuesto', 'Esto es exactamente lo que se envía con tu consulta.')];
-    bloques.push(h('section', { class: 'bloque', 'aria-labelledby': 'g-resumen' },
-      h('h2', { id: 'g-resumen' }, 'Tu configuración'),
-      img ? h('img', { class: 'captura', src: img, alt: 'Imagen del 3D con la selección actual' }) : null,
-      h('table', { class: 'resumen' },
-        h('tbody', {}, res.lineas.map((l) => h('tr', {}, h('th', { scope: 'row' }, l.etiqueta), h('td', {}, l.valor, ' ', pill(l.estado)), h('td', { class: 'precio' }, l.precio || '')))),
-        h('tfoot', {}, h('tr', {}, h('td', { colspan: '2' }, 'Precio'), h('td', { class: 'precio' }, res.total.texto)))),
-      h('p', { class: 'ayuda' }, 'Sin precios validados todavía: el presupuesto lo prepara DOMO BAIRES. Transporte, montaje, fundaciones y trabajos según la ubicación se cotizan aparte. El 3D es una aproximación y no reemplaza el cálculo estructural.'),
-      h('div', { class: 'acciones' },
-        h('button', { class: 'btn', onclick: guardarEnDispositivo }, 'Guardar en este dispositivo'),
-        h('button', { class: 'btn', onclick: (e) => copiarTexto(R.codificar(estado), e.currentTarget) }, 'Copiar código de configuración')),
-      h('p', { class: 'ayuda' }, 'El código guarda solo las elecciones y la versión del catálogo, nunca tus datos personales.')));
+    const faltan = R.validarConfiguracion(cat, estado);
+    const codigo = R.codificar(estado);
+    const campo = (id, etiqueta, control, ayuda) => h('div', { class: 'campo' + (errores[id] ? ' campo-error' : '') },
+      h('label', { for: `f-${id}` }, etiqueta),
+      control,
+      ayuda ? h('p', { class: 'campo-ayuda', id: `ayuda-${id}` }, ayuda) : null,
+      errores[id] ? h('p', { class: 'error-campo', id: `error-${id}` }, errores[id]) : null);
+    const entrada = (id, extra) => h('input', Object.assign({
+      id: `f-${id}`, name: id, value: form[id], 'aria-invalid': errores[id] ? 'true' : null,
+      'aria-describedby': [errores[id] ? `error-${id}` : null, extra && extra.ayuda ? `ayuda-${id}` : null].filter(Boolean).join(' ') || null,
+      oninput: (ev) => { form[id] = ev.currentTarget.value; },
+    }, (extra && extra.attrs) || {}));
 
-    if (errores.length) {
-      bloques.push(h('div', { class: 'aviso pendiente', role: 'status' }, h('div', {}, 'Antes de pedir el presupuesto falta:', h('ul', {}, errores.map((x) => h('li', {}, x)))),
-        !estado.modalidad ? h('button', { class: 'btn', onclick: () => irAEtapa(2) }, 'Elegir modalidad') : null));
+    const formulario = h('form', { class: 'formulario', novalidate: true, id: 'formulario', 'aria-labelledby': 'form-titulo', onsubmit: (ev) => { ev.preventDefault(); preparar(); } },
+      h('h2', { class: 'grupo-titulo', id: 'form-titulo' }, 'Tus datos'),
+      campo('nombre', 'Nombre', entrada('nombre', { attrs: { autocomplete: 'name', maxlength: '80' } })),
+      campo('contacto', 'Teléfono o email', entrada('contacto', { ayuda: true, attrs: { autocomplete: 'email', maxlength: '120', inputmode: 'email' } }), 'Para mandarte el presupuesto.'),
+      campo('localidad', 'Localidad de la obra', entrada('localidad', { ayuda: true, attrs: { autocomplete: 'address-level2', maxlength: '80' } }), 'Cambia el transporte y el montaje.'),
+      campo('comentario', 'Comentario (opcional)', h('textarea', {
+        id: 'f-comentario', name: 'comentario', rows: '3', maxlength: '1000', 'aria-invalid': errores.comentario ? 'true' : null,
+        oninput: (ev) => { form.comentario = ev.currentTarget.value; },
+      }, form.comentario)),
+      h('div', { class: 'casilla' + (errores.consentimiento ? ' campo-error' : '') },
+        h('input', {
+          type: 'checkbox', id: 'f-consentimiento', name: 'consentimiento', checked: form.consentimiento,
+          'aria-invalid': errores.consentimiento ? 'true' : null, 'aria-describedby': errores.consentimiento ? 'error-consentimiento' : null,
+          onchange: (ev) => { form.consentimiento = ev.currentTarget.checked; },
+        }),
+        h('label', { for: 'f-consentimiento' }, 'Acepto que DOMO BAIRES use estos datos solo para responder esta consulta.'),
+        errores.consentimiento ? h('p', { class: 'error-campo', id: 'error-consentimiento' }, errores.consentimiento) : null),
+      faltan.length ? h('div', { class: 'aviso aviso-error', role: 'alert', id: 'error-config' },
+        h('div', { class: 'aviso-texto' }, faltan.join(' ')),
+        !estado.modalidad ? h('button', { type: 'button', class: 'boton boton-chico', onclick: () => irA(2, { forzar: true }) }, 'Elegir entrega') : null) : null,
+      h('button', { type: 'submit', class: 'boton boton-primario boton-ancho', id: 'boton-preparar' }, 'Preparar solicitud'),
+      h('p', { class: 'nota' }, 'No se envía nada desde esta página: la solicitud se prepara para que la copies.'));
+
+    const partes = [
+      cabeza(`Paso 4 de 4 · ${ETAPAS[3].nombre}`, 'Pedí tu presupuesto', 'Revisá tu configuración, dejá tus datos y prepará la solicitud para mandarla a DOMO BAIRES.'),
+      h('section', { class: 'resumen', 'aria-labelledby': 'resumen-titulo' },
+        h('h2', { class: 'grupo-titulo', id: 'resumen-titulo' }, 'Tu configuración'),
+        h('dl', { class: 'tabla' }, res.lineas.map((l) => h('div', { class: 'fila fila-' + l.clave },
+          h('dt', {}, l.etiqueta), h('dd', {}, l.valor))))),
+      formulario,
+    ];
+    if (solicitud) {
+      const pre = h('pre', { class: 'solicitud-texto', id: 'solicitud-texto', tabindex: '0' }, solicitud);
+      partes.push(h('section', { class: 'solicitud', 'aria-labelledby': 'solicitud-titulo' },
+        h('h2', { class: 'grupo-titulo', id: 'solicitud-titulo', tabindex: '-1' }, 'Solicitud lista para copiar'),
+        pre,
+        h('button', { type: 'button', class: 'boton boton-primario boton-ancho', id: 'boton-copiar', onclick: (ev) => copiar(solicitud, ev.currentTarget, pre) }, 'Copiar'),
+        h('p', { class: 'nota' }, 'Pegala en un mensaje o un correo a DOMO BAIRES, por el medio que uses habitualmente.')));
     }
-    bloques.push(formulario(errores));
-    if (solicitud) bloques.push(solicitud);
-    return bloques;
+    const enlace = /^https?:$/.test(location.protocol) ? location.href.split('#')[0] + '#' + codigo : null;
+    const codigoEl = h('code', { class: 'codigo', id: 'codigo-config' }, codigo);
+    partes.push(h('section', { class: 'compartir', 'aria-labelledby': 'compartir-titulo' },
+      h('h2', { class: 'grupo-titulo', id: 'compartir-titulo' }, 'Compartir esta configuración'),
+      h('p', { class: 'ayuda' }, 'El enlace guarda el modelo y las opciones elegidas, nunca tus datos.'),
+      codigoEl,
+      h('button', { type: 'button', class: 'boton boton-ancho', id: 'boton-enlace', onclick: (ev) => copiar(enlace || codigo, ev.currentTarget, codigoEl) }, 'Copiar enlace de esta configuración'),
+      enlace ? null : h('p', { class: 'nota' }, 'Si copiás solo el código, agregalo al final de la dirección del configurador, después de "#".')));
+    return partes;
   }
 
-  function campo(id, etiqueta, porQue, control) {
-    return h('div', { class: 'campo' + (control.dataset.ancho ? ' ancho' : '') },
-      h('label', { for: id }, etiqueta, ' ', h('span', { class: 'por-que' }, porQue)), control);
-  }
-
-  function formulario(errores) {
-    const f = h('form', { class: 'bloque', novalidate: true, 'aria-labelledby': 'g-form', onsubmit: (e) => enviar(e) },
-      h('h2', { id: 'g-form' }, 'Tus datos de contacto'),
-      h('p', { class: 'ayuda' }, 'Los campos con * son obligatorios. Pedimos solo lo necesario para preparar el presupuesto.'),
-      h('div', { class: 'formulario' },
-        campo('f-nombre', 'Nombre *', '(para dirigirnos a vos)', h('input', { id: 'f-nombre', name: 'nombre', autocomplete: 'name', required: true })),
-        campo('f-contacto', 'Teléfono o email *', '(para enviarte el presupuesto)', h('input', { id: 'f-contacto', name: 'contacto', autocomplete: 'email', required: true })),
-        campo('f-localidad', 'Localidad de instalación *', '(cambia transporte y montaje)', h('input', { id: 'f-localidad', name: 'localidad', autocomplete: 'address-level2', required: true })),
-        campo('f-unidades', 'Cantidad de unidades', '(opcional)', h('input', { id: 'f-unidades', name: 'unidades', type: 'number', min: '1', max: '50', value: '1', inputmode: 'numeric' })),
-        (() => { const s = h('select', { id: 'f-uso', name: 'uso', 'data-ancho': '1' },
-          ['Sin especificar', 'Vivienda permanente', 'Segunda vivienda o fin de semana', 'Alojamiento para alquilar', 'Estudio u oficina', 'Otro'].map((x) => h('option', {}, x)));
-        return campo('f-uso', 'Uso previsto', '(opcional, ayuda a recomendar)', s); })()),
-      h('div', { id: 'f-errores', 'aria-live': 'polite' }),
-      h('div', { class: 'acciones' }, h('button', { type: 'submit', class: 'btn principal', 'aria-disabled': errores.length ? 'true' : null }, 'Solicitar presupuesto de esta configuración')));
-    return f;
-  }
-
-  function enviar(e) {
-    e.preventDefault();
-    const f = e.currentTarget;
-    const datos = Object.fromEntries(new FormData(f).entries());
-    const faltan = [];
-    for (const [k, t] of [['nombre', 'Nombre'], ['contacto', 'Teléfono o email'], ['localidad', 'Localidad de instalación']]) {
-      const vacio = !String(datos[k] || '').trim();
-      f.elements[k].setAttribute('aria-invalid', String(vacio));
-      if (vacio) faltan.push(`Completá ${t}.`);
-    }
-    const errores = R.validar(cat, estado).concat(faltan);
-    if (errores.length) {
-      $('f-errores').replaceChildren(h('div', { class: 'aviso error', role: 'alert' }, h('div', {}, 'No se puede preparar la solicitud todavía:', h('ul', {}, errores.map((x) => h('li', {}, x))))));
+  function preparar() {
+    const v = R.validarContacto(form);
+    const faltan = R.validarConfiguracion(cat, estado);
+    errores = v.errores;
+    if (!v.ok || faltan.length) {
+      solicitud = null;
+      render();
+      const primero = ['nombre', 'contacto', 'localidad', 'comentario', 'consentimiento'].find((k) => errores[k]);
+      const el = primero ? $(`f-${primero}`) : $('error-config');
+      if (el) { el.focus(); if (el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: reducido() ? 'auto' : 'smooth' }); }
       return;
     }
-    const res = R.resumen(cat, estado);
-    const texto = [
-      'Solicitud de presupuesto · DOMO BAIRES',
-      `Catálogo ${res.version} · código ${R.codificar(estado)}`,
-      '',
-      ...res.lineas.map((l) => `${l.etiqueta}: ${l.valor}${l.precio ? ` (${l.precio})` : ''}`),
-      `Precio: ${res.total.texto}`,
-      '',
-      `Nombre: ${datos.nombre}`,
-      `Contacto: ${datos.contacto}`,
-      `Localidad: ${datos.localidad}`,
-      `Uso previsto: ${datos.uso}`,
-      `Unidades: ${datos.unidades || 1}`,
-    ].join('\n');
-    solicitud = h('section', { class: 'bloque', 'aria-labelledby': 'g-sol' },
-      h('h2', { id: 'g-sol' }, 'Solicitud preparada (no enviada)'),
-      h('div', { class: 'aviso pendiente' }, 'En este prototipo la solicitud no se envía a ningún lado: falta que DOMO BAIRES defina el canal (formulario propio, WhatsApp o el sistema que ya use). Este es el contenido que recibiría.'),
-      h('pre', { class: 'solicitud' }, texto),
-      h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'btn', onclick: (ev) => copiarTexto(texto, ev.currentTarget) }, 'Copiar solicitud')));
+    solicitud = R.textoSolicitud(cat, estado, form);
     render();
-    $('g-sol') && $('g-sol').scrollIntoView({ block: 'start' });
+    const t = $('solicitud-titulo');
+    if (t) { t.focus({ preventScroll: true }); t.scrollIntoView({ block: 'start', behavior: reducido() ? 'auto' : 'smooth' }); }
   }
 
-  function renderBarra() {
-    const m = R.modeloDe(cat, estado.modelo);
-    const sig = etapa < ETAPAS.length - 1;
-    $('barra').replaceChildren(h('div', { class: 'dentro' },
-      etapa > 0 ? h('button', { class: 'btn', onclick: () => irAEtapa(etapa - 1) }, 'Atrás') : h('span', {}),
-      h('span', { class: 'que' }, etapa === 0 ? `${cat.modelos.length} modelos` : `${m.nombre} · ${ETAPAS[etapa]}`),
-      sig ? h('button', { class: 'btn principal', onclick: () => irAEtapa(etapa + 1) }, etapa === 0 ? `Configurar ${m.nombre}` : h('span', {}, 'Siguiente', h('span', { class: 'largo' }, `: ${ETAPAS[etapa + 1]}`)))
-        : h('button', { class: 'btn principal', onclick: () => { const n = $('f-nombre'); if (n) { n.scrollIntoView({ block: 'center' }); n.focus(); } } }, 'Solicitar presupuesto')));
+  function renderPie() {
+    const m = modelo();
+    const ops = m.opciones || [];
+    const diseno = ops.length ? ops.map((o) => (R.valorDe(o, estado.opciones[o.id]) || {}).nombre).filter(Boolean).join(' · ') : 'Diseño único';
+    const mod = R.modalidadDe(cat, estado.modalidad);
+    const precio = R.textoPrecio(R.precioDe(cat, estado));
+    const siguiente = etapa < ETAPAS.length - 1;
+    $('pie').replaceChildren(
+      h('p', { class: 'pie-modelo' }, m.nombre),
+      h('p', { class: 'pie-detalle' }, `${diseno} · ${mod ? mod.nombre : 'Entrega sin elegir'}`),
+      h('p', { class: 'pie-precio' }, precio),
+      h('div', { class: 'pie-acciones' },
+        etapa > 0 ? h('button', { type: 'button', class: 'boton', id: 'boton-atras', onclick: () => irA(etapa - 1, { forzar: true }) }, 'Atrás') : null,
+        siguiente
+          ? h('button', { type: 'button', class: 'boton boton-primario', id: 'boton-siguiente', onclick: () => irA(etapa + 1) },
+            'Siguiente', h('span', { class: 'texto-largo' }, `: ${ETAPAS[etapa + 1].nombre}`))
+          : h('button', { type: 'button', class: 'boton boton-primario', id: 'boton-siguiente', onclick: () => {
+            if (!solicitud) { preparar(); return; }
+            const t = $('solicitud-titulo');
+            if (t) { t.focus({ preventScroll: true }); t.scrollIntoView({ block: 'start', behavior: reducido() ? 'auto' : 'smooth' }); }
+          } }, solicitud ? 'Ver solicitud' : 'Preparar solicitud')));
   }
 
-  function enfocar() { const p = $('panel'); if (p) p.scrollTop = 0; }
+  // Acceso de solo lectura para las pruebas automáticas (no expone datos personales).
+  window.DomoConfigurador = {
+    get estado() { return estado ? JSON.parse(JSON.stringify(estado)) : null; },
+    get etapa() { return etapa; },
+    get visor() { return visor; },
+    get estado3d() { return fallo3d || estado3d; },
+  };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
 })();

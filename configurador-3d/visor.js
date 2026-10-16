@@ -1,27 +1,37 @@
 /*
- * Visor 3D del configurador.
+ * Visor 3D del configurador de DOMO BAIRES (three.js r128, licencia MIT).
  *
- * Dibuja una APROXIMACIÓN de cada modelo hecha a partir de las fotos de
- * DOMO BAIRES (sin medidas): domo geodésico (Dormi Áureo), planta poligonal
- * con techo zome (Dormi Patagónico) y volumen facetado (Cubic). No es la
- * geometría aprobada; se reemplaza por el GLB de cada modelo cuando esté.
- * Las medidas usadas son supuestos visuales, en metros.
+ * Muestra los modelos 3D (GLB) armados desde los archivos de Blender de DOMO.
+ * No dibuja nada propio del modelo: solo lo ilumina, lo encuadra, cambia el
+ * color del material de los paneles cuando se pide y abre las hojas de puerta
+ * ("puerta_hoja_N", que traen el origen sobre el eje de la bisagra).
  *
- * Renderiza solo cuando algo cambia (sin animación permanente).
+ * Los GLB se leen de <script type="application/octet-stream" id="glb-ID">
+ * (base64, en el HTML armado) o, si no están, de la carpeta modelos/.
+ * Si un GLB falta, avisa "faltante" y la página muestra "Modelo 3D en preparación".
+ *
+ * Uso:
+ *   const v = DomoVisor.crear(contenedor, { alEstado(estado, datos) {} });
+ *   await v.mostrar({ id, url, color: { material: 'panel', hex: '#1f3f8f' } });
+ *   v.colorear(color); v.vista('tres_cuartos'); v.alternarPuertas(); v.tema(true);
  */
 (function () {
   'use strict';
 
   const G = Math.PI / 180;
-  // Ángulo de cada posición alrededor del modelo (0 = frente, hacia +Z).
-  const ANGULO = {
-    frente: 0, derecha: 90 * G, izquierda: -90 * G, fondo: 180 * G,
-    fondo_derecha: 135 * G, fondo_izquierda: -135 * G, frente_derecha: 45 * G, frente_izquierda: -45 * G,
+  // Ángulos de cámara: azimut (0 = de frente, hacia +Z) y elevación, en grados.
+  const VISTAS = {
+    frente: { az: 0, el: 9 },
+    tres_cuartos: { az: 38, el: 17 },
+    lateral: { az: 90, el: 9 },
+    arriba: { az: 0, el: 86 },
   };
-  const NEGRO = 0x23262a;
-  const MADERA_CLARA = 0xd9c49b;
-  const MADERA_INTERIOR = 0xc79a62;
-  const movimientoReducido = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const APERTURA_PUERTA = 100 * G;
+  const MARGEN = 0.76;  // parte del cuadro que ocupa el modelo
+  const ENTORNO = 0.62; // cuánto ilumina el entorno de estudio frente al sol (más bajo = más volumen)
+  const MAX_EN_MEMORIA = 3;
+  const reducido = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const suave = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
   function webglDisponible() {
     try {
@@ -32,61 +42,148 @@
     }
   }
 
-  function crearVisor(contenedor, opciones) {
-    const avisar = opciones.alError || function () {};
-    if (!window.THREE || !THREE.OrbitControls) { avisar('sin_libreria'); return null; }
+  function base64ABuffer(texto) {
+    const bin = atob(texto.replace(/\s+/g, ''));
+    const u = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    return u.buffer;
+  }
+
+  /** Mancha suave para el contacto con el suelo (textura radial, sin imágenes externas). */
+  function texturaContacto() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const x = c.getContext('2d');
+    const g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.55, 'rgba(255,255,255,0.45)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g;
+    x.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  }
+
+  function crear(contenedor, opciones) {
+    const op = opciones || {};
+    const avisar = op.alEstado || function () {};
+    if (!window.THREE || !THREE.GLTFLoader || !THREE.OrbitControls) { avisar('sin_libreria'); return null; }
     if (!webglDisponible()) { avisar('sin_webgl'); return null; }
 
-    const escena = new THREE.Scene();
-    const camara = new THREE.PerspectiveCamera(38, 1, 0.1, 200);
-    let render3d;
+    let r3;
     try {
-      render3d = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+      r3 = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: !!op.conservarImagen });
     } catch (e) {
       avisar('sin_webgl');
       return null;
     }
-    render3d.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    contenedor.prepend(render3d.domElement);
-    render3d.domElement.setAttribute('role', 'img');
+    r3.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    r3.outputEncoding = THREE.sRGBEncoding;
+    r3.toneMapping = THREE.ACESFilmicToneMapping;
+    r3.toneMappingExposure = 1.0;
+    r3.physicallyCorrectLights = true;
+    r3.shadowMap.enabled = true;
+    r3.shadowMap.type = THREE.PCFSoftShadowMap;
+    r3.setClearColor(0x000000, 0);
+    const lienzo = r3.domElement;
+    lienzo.className = 'visor-lienzo';
+    lienzo.setAttribute('role', 'img');
+    contenedor.prepend(lienzo);
 
-    const controles = new THREE.OrbitControls(camara, render3d.domElement);
-    controles.target.set(0, 1.4, 0);
-    controles.minDistance = 5;
-    controles.maxDistance = 24;
-    controles.maxPolarAngle = Math.PI / 2 - 0.04; // no pasar por debajo del piso
+    const escena = new THREE.Scene();
+    // Reflejos suaves de estudio: el vidrio y el acero se ven con brillo real.
+    const pmrem = new THREE.PMREMGenerator(r3);
+    let entorno = null;
+    if (THREE.RoomEnvironment) {
+      entorno = pmrem.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
+      escena.environment = entorno;
+    } else {
+      escena.add(new THREE.HemisphereLight(0xffffff, 0x9a958c, 1.6));
+    }
+
+    const camara = new THREE.PerspectiveCamera(32, 1, 0.1, 200);
+    const controles = new THREE.OrbitControls(camara, lienzo);
+    controles.enableDamping = true;
+    controles.dampingFactor = 0.09;
     controles.enablePan = false;
+    controles.rotateSpeed = 0.75;
+    controles.zoomSpeed = 0.8;
+    controles.maxPolarAngle = 87 * G; // la cámara nunca baja del suelo
+    controles.minPolarAngle = 2 * G;
+    controles.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
 
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x8a8f86, 0.95);
-    const sol = new THREE.DirectionalLight(0xffffff, 0.65);
-    sol.position.set(6, 10, 7);
-    const interior = new THREE.PointLight(0xffc27a, 0, 9);
-    interior.position.set(0, 1.6, 0);
-    escena.add(hemi, sol, interior);
-    const piso = new THREE.Mesh(new THREE.CircleGeometry(30, 48), new THREE.MeshLambertMaterial({ color: 0x9fac98 }));
-    piso.rotation.x = -Math.PI / 2;
-    escena.add(piso);
+    // Sol cálido con sombra suave, solo del modelo sobre un plano que no se ve.
+    const sol = new THREE.DirectionalLight(0xffe9d4, 3.4);
+    sol.castShadow = true;
+    sol.shadow.mapSize.set(2048, 2048);
+    sol.shadow.bias = -0.0004;
+    sol.shadow.normalBias = 0.02;
+    escena.add(sol, sol.target);
 
-    let grupo = null;
-    let noche = false;
-    let vista = 'exterior';
-    let animando = null;
-    const vidrios = [];
+    const matSombra = new THREE.ShadowMaterial({ opacity: 0.2 });
+    matSombra.depthWrite = false;
+    const sombra = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), matSombra);
+    sombra.rotation.x = -Math.PI / 2;
+    sombra.position.y = -0.003;
+    sombra.receiveShadow = true;
+    sombra.renderOrder = -2;
+    const matContacto = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.1, depthWrite: false, alphaMap: texturaContacto() });
+    const contacto = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), matContacto);
+    contacto.rotation.x = -Math.PI / 2;
+    contacto.position.y = -0.002;
+    contacto.renderOrder = -1;
+    escena.add(sombra, contacto);
 
-    function dibujar() { render3d.render(escena, camara); }
-    controles.addEventListener('change', dibujar);
+    // ---------- estado ----------
+    const cache = new Map(); // id -> { promesa, objeto }
+    let actual = null;       // { id, objeto, caja, puertas: [...] }
+    let pedido = 0;          // para ignorar cargas viejas si se cambia rápido de modelo
+    let color = null;
+    let abiertas = false;
+    let vistaActual = 'tres_cuartos';
+    let encuadreAutomatico = true;
+    let sucio = true;
+    let destruido = false;
+    const animaciones = new Set();
+
+    function animar(duracion, paso, alTerminar) {
+      if (reducido() || duracion <= 0) { paso(1); if (alTerminar) alTerminar(); sucio = true; return; }
+      const a = { inicio: performance.now(), duracion, paso, alTerminar };
+      animaciones.add(a);
+    }
+
+    // ---------- bucle: dibuja solo cuando algo cambia ----------
+    let rafId = 0;
+    function cuadro(t) {
+      rafId = requestAnimationFrame(cuadro);
+      for (const a of [...animaciones]) {
+        const k = Math.min(1, (t - a.inicio) / a.duracion);
+        a.paso(suave(Math.max(0, k)));
+        if (k >= 1) { animaciones.delete(a); if (a.alTerminar) a.alTerminar(); }
+        sucio = true;
+      }
+      if (controles.update()) sucio = true;
+      if (sucio) { r3.render(escena, camara); sucio = false; }
+    }
+    rafId = requestAnimationFrame(cuadro);
+    controles.addEventListener('start', () => { encuadreAutomatico = false; });
+    controles.addEventListener('change', () => { sucio = true; });
 
     function medir() {
-      const w = contenedor.clientWidth || 600;
-      const h = contenedor.clientHeight || 450;
-      render3d.setSize(w, h, false);
+      const w = Math.max(1, contenedor.clientWidth);
+      const h = Math.max(1, contenedor.clientHeight);
+      r3.setSize(w, h, false);
       camara.aspect = w / h;
       camara.updateProjectionMatrix();
-      dibujar();
+      if (actual && encuadreAutomatico) encuadrar(vistaActual, false);
+      sucio = true;
     }
     const obs = window.ResizeObserver ? new ResizeObserver(medir) : null;
     if (obs) obs.observe(contenedor); else window.addEventListener('resize', medir);
+    medir();
 
+    lienzo.addEventListener('webglcontextlost', (e) => { e.preventDefault(); avisar('contexto_perdido'); });
+
+    // ---------- carga ----------
     function liberar(obj) {
       obj.traverse((o) => {
         if (o.geometry) o.geometry.dispose();
@@ -94,443 +191,354 @@
       });
     }
 
-    // ---------- piezas ----------
-    const lambert = (color, extra) => new THREE.MeshLambertMaterial(Object.assign({ color, side: THREE.DoubleSide }, extra || {}));
-    function caja(w, h, d, color, extra) {
-      return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), lambert(color, extra));
-    }
-    function matVidrio() {
-      const m = new THREE.MeshPhongMaterial({ color: 0x9fc6d6, transparent: true, opacity: 0.38, side: THREE.DoubleSide, shininess: 90, depthWrite: false });
-      vidrios.push(m);
-      return m;
-    }
-    function vidrio(w, h) { return new THREE.Mesh(new THREE.PlaneGeometry(w, h), matVidrio()); }
-
-    /** Barra (perfil, montante o puntal) entre dos puntos. */
-    function barra(p, q, grosor, color) {
-      const a = new THREE.Vector3(...p), b = new THREE.Vector3(...q);
-      const largo = a.distanceTo(b);
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(grosor, grosor, largo, 6), lambert(color));
-      m.position.copy(a).add(b).multiplyScalar(0.5);
-      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
-      return m;
-    }
-
-    /** Polígono plano (lista de puntos 3D en orden) como malla. */
-    function poligono(puntos, material) {
-      const pos = [];
-      for (let i = 1; i < puntos.length - 1; i++) pos.push(...puntos[0], ...puntos[i], ...puntos[i + 1]);
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      g.computeVertexNormals();
-      return new THREE.Mesh(g, material);
-    }
-
-    function rotulo(texto) {
-      const c = document.createElement('canvas');
-      c.width = 768; c.height = 96;
-      const x = c.getContext('2d');
-      x.fillStyle = 'rgba(251,240,217,0.95)'; x.fillRect(0, 0, 768, 96);
-      x.strokeStyle = '#8a5a00'; x.lineWidth = 6; x.strokeRect(3, 3, 762, 90);
-      x.fillStyle = '#5a3b00'; x.font = '600 34px Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-      x.fillText(texto, 384, 50);
-      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
-      s.scale.set(4, 0.5, 1);
-      return s;
-    }
-
-    /** Coloca un objeto armado mirando a +Z en la posición indicada, a cierta distancia del centro. */
-    function enPosicion(posicion, distancia, objeto) {
-      const g = new THREE.Group();
-      g.rotation.y = ANGULO[posicion] || 0;
-      objeto.position.z += distancia;
-      g.add(objeto);
-      return g;
-    }
-
-    function puerta(visual) {
-      const g = new THREE.Group();
-      const ancho = visual.ancho || 0.9;
-      const marco = 0.07;
-      const madera = 0x6b4a2b;
-      g.add(caja(ancho + marco * 2, marco, 0.1, NEGRO).translateY(2.05));
-      g.add(caja(marco, 2.1, 0.1, NEGRO).translateX(-(ancho / 2 + marco / 2)).translateY(1.05));
-      g.add(caja(marco, 2.1, 0.1, NEGRO).translateX(ancho / 2 + marco / 2).translateY(1.05));
-      const hojas = visual.vidrio ? 2 : 1;
-      for (let i = 0; i < hojas; i++) {
-        const w = ancho / hojas;
-        const hoja = new THREE.Group();
-        if (visual.vidrio) {
-          hoja.add(caja(w, 0.08, 0.05, NEGRO).translateY(0.04));
-          hoja.add(caja(w, 0.08, 0.05, NEGRO).translateY(1.96));
-          hoja.add(caja(0.06, 2.0, 0.05, NEGRO).translateX(-w / 2 + 0.03).translateY(1.0));
-          hoja.add(caja(0.06, 2.0, 0.05, NEGRO).translateX(w / 2 - 0.03).translateY(1.0));
-          const v = vidrio(w - 0.12, 1.84);
-          v.position.set(0, 1.0, 0);
-          hoja.add(v);
-        } else {
-          hoja.add(caja(w, 2.0, 0.06, madera).translateY(1.0));
-          hoja.add(caja(w * 0.5, 0.9, 0.02, 0x5a3d22).translateY(1.05).translateZ(0.035));
-        }
-        hoja.add(caja(0.025, 0.18, 0.04, 0xc9b37a).translateX(i === 0 && hojas === 2 ? w / 2 - 0.1 : -w / 2 + 0.1).translateY(1.0).translateZ(0.05));
-        hoja.position.x = -ancho / 2 + w * (i + 0.5);
-        g.add(hoja);
+    function recortarCache() {
+      const ids = [...cache.keys()];
+      while (cache.size > MAX_EN_MEMORIA) {
+        const id = ids.shift();
+        if (actual && actual.id === id) continue;
+        const e = cache.get(id);
+        cache.delete(id);
+        if (e && e.objeto) liberar(e.objeto);
       }
-      return g;
     }
 
-    function ventana(visual, medida) {
-      const g = new THREE.Group();
-      const w = (medida && medida.w) || 1.0, h = (medida && medida.h) || 0.9, y = (medida && medida.y) || 1.45, m = 0.06;
-      g.add(caja(w + m * 2, m, 0.1, NEGRO).translateY(y + h / 2 + m / 2));
-      g.add(caja(w + m * 2, m, 0.1, NEGRO).translateY(y - h / 2 - m / 2));
-      g.add(caja(m, h, 0.1, NEGRO).translateX(-w / 2 - m / 2).translateY(y));
-      g.add(caja(m, h, 0.1, NEGRO).translateX(w / 2 + m / 2).translateY(y));
-      if (visual.apertura) {
-        // Hoja con bisagra en el lado izquierdo: el pivote está en el borde, no en el centro.
-        const bisagra = new THREE.Group();
-        bisagra.position.set(-w / 2, y, 0.02);
-        const v = vidrio(w - 0.04, h - 0.04);
-        v.position.x = w / 2;
-        bisagra.add(v);
-        bisagra.add(caja(0.03, h - 0.04, 0.04, NEGRO).translateX(w - 0.03));
-        bisagra.rotation.y = -0.45;
-        g.add(bisagra);
-      } else {
-        const v = vidrio(w - 0.02, h - 0.02);
-        v.position.y = y;
-        g.add(v);
+    async function leerBuffer(id, url) {
+      const incrustado = document.getElementById('glb-' + id);
+      if (incrustado) return base64ABuffer(incrustado.textContent);
+      if (op.soloIncrustados || !url) { const e = new Error('Sin modelo 3D'); e.faltante = true; throw e; }
+      let r;
+      try {
+        r = await fetch(url);
+      } catch (e) {
+        e.faltante = true; // sin servidor (archivo abierto con doble clic) o sin conexión
+        throw e;
       }
-      return g;
+      if (!r.ok) { const e = new Error('HTTP ' + r.status); e.faltante = r.status === 404; throw e; }
+      return r.arrayBuffer();
     }
 
-    function portico(distancia) {
-      const g = new THREE.Group();
-      const madera = 0x9a6a3a, prof = 1.3, ancho = 2.4, alto = 2.5, s = 0.12;
-      [-1, 1].forEach((lado) => {
-        g.add(caja(s, alto, s, madera).translateX(lado * ancho / 2).translateY(alto / 2).translateZ(distancia + prof));
-        g.add(caja(s, s, prof, madera).translateX(lado * ancho / 2).translateY(alto).translateZ(distancia + prof / 2));
-      });
-      g.add(caja(ancho + s, s, s, madera).translateY(alto).translateZ(distancia + prof));
-      g.add(caja(ancho + 0.4, 0.05, prof + 0.3, 0x5b5f5c).translateY(alto + 0.1).translateZ(distancia + prof / 2 + 0.05));
-      return g;
-    }
-
-    const azimut = (v) => Math.atan2(v.x, v.z);
-    const difAng = (a, b) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
-
-    // ---------- Dormi Áureo: domo geodésico sobre platea (según capturas de Blender) ----------
-    function geodesico(datos) {
-      const g = new THREE.Group();
-      const R = 2.6, base = 0.3;
-      const ico = new THREE.IcosahedronGeometry(R, 2); // frecuencia 3
-      const t = (1 + Math.sqrt(5)) / 2;
-      ico.rotateZ(-Math.atan(1 / t)); // un vértice arriba, simetría de 5 en la cúspide
-      const p = ico.attributes.position;
-      const tris = [];
-      for (let i = 0; i < p.count; i += 3) {
-        const v = [0, 1, 2].map((k) => new THREE.Vector3(p.getX(i + k), p.getY(i + k), p.getZ(i + k)));
-        const c = v[0].clone().add(v[1]).add(v[2]).divideScalar(3);
-        if (c.y > -0.32 * R) tris.push({ v, c });
-      }
-      ico.dispose();
-      let minY = Infinity;
-      tris.forEach((t3) => t3.v.forEach((v) => { minY = Math.min(minY, v.y); }));
-      const dy = base - minY;
-      tris.forEach((t3) => { t3.v.forEach((v) => { v.y += dy; }); t3.c.y += dy; });
-
-      // Platea hexagonal y escalón.
-      const platea = new THREE.Mesh(new THREE.CylinderGeometry(R + 1.0, R + 1.0, base, 6), lambert(0x9aa09a));
-      platea.position.y = base / 2;
-      g.add(platea, caja(1.4, 0.15, 0.5, 0x9aa09a).translateY(0.075).translateZ(R + 1.2));
-
-      const ventanas = datos.aberturas.filter((a) => a.tipo === 'ventana');
-      const puertaFrente = datos.aberturas.some((a) => a.tipo === 'puerta' && a.posicion === 'frente');
-      // Paños bajos ocupados por la caja de la puerta (frente).
-      const bajo = (t3) => t3.c.y < base + 1.55;
-      const vidriados = new Map();
-      for (const a of ventanas) {
-        const ang = ANGULO[a.posicion] || 0;
-        const libres = tris.filter((t3) => bajo(t3) && !vidriados.has(t3));
-        libres.sort((x, y) => difAng(azimut(x.c), ang) - difAng(azimut(y.c), ang));
-        if (libres[0]) vidriados.set(libres[0], a);
-      }
-      const matPanel = lambert(datos.color || 0x8a6a48);
-      for (const t3 of tris) {
-        if (puertaFrente && bajo(t3) && difAng(azimut(t3.c), 0) < 0.42) continue;
-        const inset = t3.v.map((v) => v.clone().lerp(t3.c, 0.16).toArray());
-        const ab = vidriados.get(t3);
-        if (ab) {
-          g.add(poligono(inset, matVidrio()));
-          if (ab.visual.apertura) {
-            // Paño con apertura: una hoja triangular más chica, entreabierta desde su lado inferior.
-            const sub = t3.v.map((v) => v.clone().lerp(t3.c, 0.45));
-            const hoja = new THREE.Group();
-            const piv = sub[0].clone().add(sub[1]).multiplyScalar(0.5);
-            hoja.position.copy(piv);
-            hoja.add(poligono(sub.map((v) => v.clone().sub(piv).toArray()), matVidrio()));
-            for (let k = 0; k < 3; k++) hoja.add(barra(sub[k].clone().sub(piv).toArray(), sub[(k + 1) % 3].clone().sub(piv).toArray(), 0.02, NEGRO));
-            hoja.rotateOnAxis(sub[1].clone().sub(sub[0]).normalize(), 0.35);
-            g.add(hoja);
+    /** Ajusta materiales y prepara las puertas de un modelo recién leído. */
+    function preparar(raiz) {
+      raiz.updateMatrixWorld(true);
+      const caja = new THREE.Box3().setFromObject(raiz);
+      const centro = caja.getCenter(new THREE.Vector3());
+      const vidrios = new Map();
+      raiz.traverse((o) => {
+        if (!o.isMesh) return;
+        o.castShadow = true;
+        o.receiveShadow = false;
+        const m = o.material;
+        if (!m) return;
+        if (m.name === 'vidrio') {
+          if (!vidrios.has(m)) {
+            const v = new THREE.MeshPhysicalMaterial({
+              name: 'vidrio', color: m.color.clone().lerp(new THREE.Color(1, 1, 1), 0.35), metalness: 0, roughness: 0.04,
+              transparent: true, opacity: 0.26, depthWrite: false, side: THREE.DoubleSide, envMapIntensity: 1.4, reflectivity: 0.6,
+            });
+            vidrios.set(m, v);
+            m.dispose();
           }
-        } else {
-          g.add(poligono(inset, matPanel));
+          o.material = vidrios.get(m);
+          o.castShadow = false;
+          o.renderOrder = 10;
+          return;
         }
-      }
-      // Puntales y nodos.
-      const aristas = new Map(), nodos = new Map();
-      const clave = (v) => v.toArray().map((n) => n.toFixed(3)).join(',');
-      for (const t3 of tris) {
-        for (let k = 0; k < 3; k++) {
-          const a = t3.v[k], b = t3.v[(k + 1) % 3];
-          const ka = clave(a), kb = clave(b);
-          aristas.set(ka < kb ? ka + '|' + kb : kb + '|' + ka, [a, b]);
-          nodos.set(ka, a);
+        m.side = THREE.DoubleSide;
+        m.envMapIntensity = ENTORNO;
+        if (m.name === 'incrustacion' || m.name === 'puerta_detalle') {
+          // Van apoyadas sobre paneles y puertas: se adelantan apenas para que nunca parpadeen.
+          m.polygonOffset = true;
+          m.polygonOffsetFactor = -1;
+          m.polygonOffsetUnits = -2;
         }
-      }
-      aristas.forEach(([a, b]) => g.add(barra(a.toArray(), b.toArray(), 0.045, MADERA_CLARA)));
-      const geoNodo = new THREE.SphereGeometry(0.075, 10, 8), matNodo = lambert(0x6d7173);
-      nodos.forEach((v) => { const n = new THREE.Mesh(geoNodo, matNodo); n.position.copy(v); g.add(n); });
-      // Piso interior de madera.
-      const pisoInt = new THREE.Mesh(new THREE.CircleGeometry(R * 0.93, 24), lambert(MADERA_INTERIOR));
-      pisoInt.rotation.x = -Math.PI / 2; pisoInt.position.y = base + 0.01;
-      g.add(pisoInt);
-
-      // Caja de acceso saliente, como en la captura.
-      const frenteZ = R * 0.98;
-      if (puertaFrente) {
-        const caj = new THREE.Group();
-        const ap = datos.aberturas.find((a) => a.tipo === 'puerta' && a.posicion === 'frente');
-        const w = Math.max(1.3, ((ap && ap.visual.ancho) || 0.9) + 0.35), h = 2.35, d = 0.9;
-        caj.add(caja(0.08, h, d, MADERA_CLARA).translateX(-w / 2).translateY(base + h / 2).translateZ(frenteZ - d / 2 + 0.15));
-        caj.add(caja(0.08, h, d, MADERA_CLARA).translateX(w / 2).translateY(base + h / 2).translateZ(frenteZ - d / 2 + 0.15));
-        caj.add(caja(w + 0.08, 0.1, d, MADERA_CLARA).translateY(base + h).translateZ(frenteZ - d / 2 + 0.15));
-        g.add(caj);
-      }
-      return { grupo: g, anclas: { frente: frenteZ + 0.15 }, base, altura: base + 2 * R * 0.82, alto: 2.5 * R };
-    }
-
-    // ---------- Dormi Patagónico: planta octogonal vidriada y techo zome (según imágenes) ----------
-    function zome(datos) {
-      const g = new THREE.Group();
-      const R = 2.9, H = 2.6, base = 0.25, n = 8;
-      const apotema = R * Math.cos(Math.PI / n);
-      const vert = (k, r, y) => { const a = (k * 360 / n + 180 / n) * G; return [Math.sin(a) * r, y, Math.cos(a) * r]; };
-      const deck = new THREE.Mesh(new THREE.CylinderGeometry(R + 1.3, R + 1.3, base, n), lambert(0xa9875f));
-      deck.rotation.y = Math.PI / n; deck.position.y = base / 2;
-      g.add(deck);
-      const pisoInt = new THREE.Mesh(new THREE.CircleGeometry(apotema - 0.05, n), lambert(MADERA_INTERIOR));
-      pisoInt.rotation.x = -Math.PI / 2; pisoInt.rotation.z = Math.PI / n; pisoInt.position.y = base + 0.01;
-      g.add(pisoInt);
-
-      const ocupadas = new Set(datos.aberturas.map((a) => a.posicion));
-      const caraMadera = new Set(['fondo', 'fondo_izquierda', 'fondo_derecha']);
-      const nombre = (ang) => Object.keys(ANGULO).find((k) => difAng(ANGULO[k], ang) < 0.01);
-      for (let k = 0; k < n; k++) {
-        const a = vert(k, R, base), b = vert(k + 1, R, base);
-        const ang = ((k + 1) * 360 / n) * G; // centro de la cara
-        const cara = nombre(ang);
-        g.add(barra(a, [a[0], base + H, a[2]], 0.06, NEGRO));
-        g.add(barra(a, b, 0.04, NEGRO), barra([a[0], base + H, a[2]], [b[0], base + H, b[2]], 0.05, NEGRO));
-        const quad = [a, b, [b[0], base + H, b[2]], [a[0], base + H, a[2]]];
-        if (caraMadera.has(cara)) {
-          g.add(poligono(quad, lambert(0xb5834a)));
-        } else {
-          g.add(poligono(quad, matVidrio()));
-          g.add(barra([a[0], base + 2.15, a[2]], [b[0], base + 2.15, b[2]], 0.03, NEGRO));
-          if (cara === 'frente' && ocupadas.has('frente')) continue;
-          const mx = (a[0] + b[0]) / 2, mz = (a[2] + b[2]) / 2;
-          g.add(barra([mx, base, mz], [mx, base + H, mz], 0.03, NEGRO));
-        }
-      }
-      // Techo zome: aleros, rombos (cometas) y tapa.
-      const al = 1.06;
-      const r0 = (k) => vert(k, R * al, base + H);
-      const r1 = (k) => vert(k + 0.5, R * 0.72, base + H + 0.95);
-      const r2 = (k) => vert(k, R * 0.36, base + H + 1.6);
-      const cima = [0, base + H + 1.95, 0];
-      const matTecho = lambert(datos.color || 0x3a3d42);
-      for (let k = 0; k < n; k++) {
-        g.add(poligono([r0(k), r0(k + 1), r1(k)], matTecho));
-        g.add(poligono([r0(k + 1), r1(k + 1), r2(k + 1), r1(k)], matTecho));
-        g.add(poligono([r1(k), r2(k + 1), r2(k)], matTecho));
-        g.add(poligono([r2(k), r2(k + 1), cima], matTecho));
-        [[r0(k), r0(k + 1)], [r0(k + 1), r1(k)], [r0(k + 1), r1(k + 1)], [r1(k), r2(k + 1)], [r1(k + 1), r2(k + 1)], [r1(k), r2(k)], [r2(k), cima]]
-          .forEach(([p, q]) => g.add(barra(p, q, 0.025, 0x15171a)));
-      }
-      return { grupo: g, anclas: { _todas: apotema + 0.02 }, base, alto: base + H + 1.95 };
-    }
-
-    // ---------- Cubic: volumen facetado (según fotos) ----------
-    function facetado(datos) {
-      const g = new THREE.Group();
-      const L = 3.6, base = 0.2;
-      const perfil = [[-1.6, 0], [1.6, 0], [1.95, 0.9], [1.95, 1.7], [0, 3.1], [-1.95, 1.7], [-1.95, 0.9]];
-      const vidrioArista = new Set([3, 4]); // faldones superiores vidriados
-      const P = (i, z) => [perfil[i][0], perfil[i][1] + base, z];
-      const matOpaco = lambert(datos.color || 0x2f3236);
-      const plataforma = caja(4.8, base, L + 1.6, 0xa9875f);
-      plataforma.position.set(0, base / 2, 0.4);
-      g.add(plataforma);
-      const pisoInt = caja(3.1, 0.04, L - 0.1, MADERA_INTERIOR);
-      pisoInt.position.y = base + 0.03;
-      g.add(pisoInt);
-      // Fondo interior de madera, visible a través del vidrio.
-      g.add(poligono(perfil.map((_, i) => P(i, -L / 2 + 0.05)), lambert(MADERA_INTERIOR)));
-      for (let i = 0; i < perfil.length; i++) {
-        const j = (i + 1) % perfil.length;
-        if (i === 0) continue; // piso
-        const quad = [P(i, -L / 2), P(j, -L / 2), P(j, L / 2), P(i, L / 2)];
-        g.add(poligono(quad, vidrioArista.has(i) ? matVidrio() : matOpaco));
-      }
-      // Frente vidriado y fondo opaco.
-      g.add(poligono(perfil.map((_, i) => P(i, L / 2)), matVidrio()));
-      g.add(poligono(perfil.map((_, i) => P(i, -L / 2)), matOpaco));
-      // Perfilería negra: contornos, aristas longitudinales, montantes del frente y del techo.
-      for (let i = 0; i < perfil.length; i++) {
-        const j = (i + 1) % perfil.length;
-        g.add(barra(P(i, L / 2), P(j, L / 2), 0.06, NEGRO), barra(P(i, -L / 2), P(j, -L / 2), 0.06, NEGRO));
-        g.add(barra(P(i, -L / 2), P(i, L / 2), 0.06, NEGRO));
-      }
-      [-0.65, 0.65].forEach((x) => g.add(barra([x, base, L / 2], [x, base + 3.1 - Math.abs(x) * 1.4 / 1.95, L / 2], 0.04, NEGRO)));
-      [-L / 6, L / 6].forEach((z) => {
-        g.add(barra(P(3, z), P(4, z), 0.04, NEGRO), barra(P(4, z), P(5, z), 0.04, NEGRO));
+        if (m.name === 'acero') { m.metalness = Math.max(m.metalness, 0.75); m.roughness = Math.min(m.roughness, 0.4); }
+        if (!m.userData.colorOriginal) m.userData.colorOriginal = m.color.clone();
       });
-      return {
-        grupo: g,
-        anclas: { frente: L / 2 + 0.02, izquierda: 1.97, derecha: 1.97, fondo: L / 2 + 0.02 },
-        ventana: { w: 1.0, h: 0.62, y: 1.3 },
-        base, alto: base + 3.1,
-      };
+      // Puntos de la geometría (muestreados) para encuadrar justo lo que se ve, no la caja.
+      const puntos = [];
+      const v = new THREE.Vector3();
+      raiz.traverse((o) => {
+        if (!o.isMesh || !o.geometry || !o.geometry.attributes.position) return;
+        const pos = o.geometry.attributes.position;
+        const paso = Math.max(1, Math.floor(pos.count / 1500));
+        for (let i = 0; i < pos.count; i += paso) puntos.push(v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld).clone());
+      });
+      // Hojas de puerta: sentido de giro hacia afuera según de qué lado está la bisagra.
+      const puertas = [];
+      raiz.traverse((o) => {
+        if (!/^puerta_hoja_\d+$/.test(o.name)) return;
+        const p = new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
+        const c = new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3());
+        const d = c.sub(p);                                    // de la bisagra hacia el borde libre
+        const n = new THREE.Vector3(p.x - centro.x, 0, p.z - centro.z).normalize(); // hacia afuera
+        let signo = Math.sign(d.z * n.x - d.x * n.z) || 1;
+        const abre = o.userData && o.userData.abre;
+        if (abre && /adentro/.test(abre)) signo = -signo;
+        puertas.push({ objeto: o, base: o.rotation.y, signo, angulo: 0 });
+      });
+      return { caja, puertas, puntos };
     }
 
-    // ---------- Volumen neutro, para un modelo sin forma cargada ----------
-    function neutro(datos) {
-      const g = new THREE.Group();
-      const R = 2.6, A = 2.7, ap = R * Math.cos(Math.PI / 8);
-      const env = new THREE.Mesh(new THREE.CylinderGeometry(R, R, A, 8), lambert(datos.color || 0x8a8f8c, { transparent: true, opacity: 0.92 }));
-      env.rotation.y = Math.PI / 8; env.position.y = A / 2 + 0.15;
-      g.add(env);
-      return { grupo: g, anclas: { _todas: ap + 0.03 }, base: 0.15, alto: A + 0.15 };
+    function obtener(id, url) {
+      if (cache.has(id)) return cache.get(id).promesa;
+      const entrada = { promesa: null, objeto: null };
+      entrada.promesa = (async () => {
+        const buffer = await leerBuffer(id, url);
+        const gltf = await new Promise((ok, no) => new THREE.GLTFLoader().parse(buffer, '', ok, no));
+        const raiz = gltf.scene;
+        raiz.userData.datos = preparar(raiz);
+        entrada.objeto = raiz;
+        return raiz;
+      })();
+      cache.set(id, entrada);
+      entrada.promesa.catch(() => cache.delete(id));
+      return entrada.promesa;
     }
 
-    const FORMAS = { geodesico, zome, facetado };
+    // ---------- color ----------
+    function aplicarColor(objeto, c, animado) {
+      const destino = c && c.hex ? new THREE.Color(c.hex).convertSRGBToLinear() : null;
+      const material = (c && c.material) || 'panel';
+      const vistos = new Set();
+      objeto.traverse((o) => {
+        if (!o.isMesh || !o.material || o.material.name !== material || vistos.has(o.material)) return;
+        const m = o.material;
+        vistos.add(m);
+        const desde = m.color.clone();
+        const hasta = destino || m.userData.colorOriginal;
+        if (!animado) { m.color.copy(hasta); return; }
+        animar(320, (k) => { m.color.copy(desde).lerp(hasta, k); });
+      });
+      sucio = true;
+    }
 
-    function construir(datos) {
-      if (grupo) { escena.remove(grupo); liberar(grupo); }
-      vidrios.length = 0;
-      const forma = FORMAS[datos.forma] || neutro;
-      const r = forma(datos);
-      grupo = r.grupo;
-      const dist = (pos) => (r.anclas[pos] !== undefined ? r.anclas[pos] : r.anclas._todas);
-      for (const a of datos.aberturas) {
-        if (forma === geodesico && a.tipo === 'ventana') continue; // se vidria un paño del domo
-        const d = dist(a.posicion);
-        if (d === undefined) continue;
-        const pieza = a.tipo === 'puerta' ? puerta(a.visual) : ventana(a.visual, r.ventana);
-        pieza.position.y = r.base;
-        grupo.add(enPosicion(a.posicion, d, pieza));
+    // ---------- cámara ----------
+    function orientacionActual() {
+      const v = camara.position.clone().sub(controles.target);
+      const dist = v.length() || 1;
+      return { az: Math.atan2(v.x, v.z) / G, el: Math.asin(Math.max(-1, Math.min(1, v.y / dist))) / G, dist };
+    }
+
+    /**
+     * Encuadre mirando desde (az, el): sube o baja el punto de mira para centrar
+     * el modelo en altura y calcula la distancia para que todo entre en cuadro.
+     */
+    function encuadreDesde(puntos, objetivo, az, el) {
+      const dir = new THREE.Vector3(Math.sin(az * G) * Math.cos(el * G), Math.sin(el * G), Math.cos(az * G) * Math.cos(el * G));
+      const atras = dir.clone();
+      const derecha = new THREE.Vector3(0, 1, 0).cross(atras);
+      if (derecha.lengthSq() < 1e-6) derecha.set(1, 0, 0);
+      derecha.normalize();
+      const arriba = atras.clone().cross(derecha).normalize();
+      const tanV = Math.tan((camara.fov * G) / 2) * MARGEN;
+      const tanH = tanV * camara.aspect;
+      const q = new THREE.Vector3();
+      if (el < 60) {
+        let lo = Infinity, hi = -Infinity;
+        for (const p of puntos) { const u = q.copy(p).sub(objetivo).dot(arriba); lo = Math.min(lo, u); hi = Math.max(hi, u); }
+        objetivo.y += ((lo + hi) / 2) / arriba.y;
       }
-      if (datos.portico) {
-        const p = portico(dist('frente') || 3);
-        p.position.y = r.base;
-        grupo.add(p);
+      let d = 0;
+      for (const p of puntos) {
+        q.copy(p).sub(objetivo);
+        const z = q.dot(atras);
+        d = Math.max(d, z + Math.abs(q.dot(derecha)) / tanH, z + Math.abs(q.dot(arriba)) / tanV);
       }
-      const cartel = rotulo(forma === neutro ? 'MAQUETA · FORMA PENDIENTE' : 'APROXIMACIÓN · SIN MEDIDAS');
-      cartel.position.set(0, r.alto + 0.7, 0);
-      grupo.add(cartel);
-      escena.add(grupo);
-      aplicarLuz();
-      dibujar();
+      return { dist: d, dir, objetivo };
     }
 
-    function aplicarLuz() {
-      hemi.intensity = noche ? 0.18 : 0.95;
-      sol.intensity = noche ? 0.08 : 0.65;
-      interior.intensity = noche ? 1.8 : 0;
-      vidrios.forEach((m) => m.emissive.setHex(noche ? 0x6b4a1f : 0x000000));
-      piso.material.color.setHex(noche ? 0x2b3330 : 0x9fac98);
-      contenedor.classList.toggle('noche', noche);
-    }
-
-    function posicionCamara(direccion, distancia, alto) {
-      const ang = ANGULO[direccion] !== undefined ? ANGULO[direccion] : 0.6;
-      return new THREE.Vector3(Math.sin(ang) * distancia, alto, Math.cos(ang) * distancia);
-    }
-
-    function irA(destino, objetivo) {
-      if (animando) cancelAnimationFrame(animando.id);
-      if (movimientoReducido()) {
-        camara.position.copy(destino); controles.target.copy(objetivo); controles.update(); dibujar();
+    function encuadrar(nombre, animado) {
+      if (!actual) return;
+      const caja = actual.caja;
+      const tam = caja.getSize(new THREE.Vector3());
+      const objetivo = caja.getCenter(new THREE.Vector3());
+      objetivo.y = caja.min.y + tam.y * 0.45;
+      let ang;
+      if (nombre === 'centrar') {
+        const o = orientacionActual();
+        ang = { az: o.az, el: Math.max(6, Math.min(60, o.el)) };
+      } else {
+        ang = VISTAS[nombre] || VISTAS.tres_cuartos;
+        vistaActual = nombre;
+      }
+      const { dist, dir } = encuadreDesde(actual.puntos, objetivo, ang.az, ang.el);
+      const radio = tam.length() / 2;
+      controles.minDistance = Math.max(0.5, Math.min(dist * 0.45, radio * 1.1));
+      controles.maxDistance = dist * 2.4;
+      const destino = objetivo.clone().add(dir.multiplyScalar(dist));
+      if (!animado) {
+        controles.target.copy(objetivo);
+        camara.position.copy(destino);
+        controles.update();
+        sucio = true;
         return;
       }
-      const desde = camara.position.clone(), tDesde = controles.target.clone(), t0 = performance.now(), dur = 650;
-      // Interpolamos el ángulo alrededor del objeto para no atravesarlo.
-      const r0 = Math.hypot(desde.x, desde.z), r1 = Math.hypot(destino.x, destino.z);
-      let a0 = Math.atan2(desde.x, desde.z), a1 = Math.atan2(destino.x, destino.z);
-      if (a1 - a0 > Math.PI) a1 -= 2 * Math.PI; else if (a0 - a1 > Math.PI) a1 += 2 * Math.PI;
-      const paso = (ahora) => {
-        const k = Math.min(1, (ahora - t0) / dur), e = 1 - Math.pow(1 - k, 3);
-        const a = a0 + (a1 - a0) * e, r = r0 + (r1 - r0) * e;
-        camara.position.set(Math.sin(a) * r, desde.y + (destino.y - desde.y) * e, Math.cos(a) * r);
-        controles.target.lerpVectors(tDesde, objetivo, e);
-        controles.update(); dibujar();
-        animando = k < 1 ? { id: requestAnimationFrame(paso) } : null;
-      };
-      animando = { id: requestAnimationFrame(paso) };
+      // Recorrido por ángulos (no en línea recta) para que la cámara rodee el modelo.
+      const o = orientacionActual();
+      const t0 = controles.target.clone();
+      let daz = ang.az - o.az;
+      while (daz > 180) daz -= 360;
+      while (daz < -180) daz += 360;
+      controles.enabled = false;
+      animar(750, (k) => {
+        const az = o.az + daz * k;
+        const el = o.el + (ang.el - o.el) * k;
+        const di = o.dist + (dist - o.dist) * k;
+        const t = t0.clone().lerp(objetivo, k);
+        controles.target.copy(t);
+        camara.position.set(
+          t.x + Math.sin(az * G) * Math.cos(el * G) * di,
+          t.y + Math.sin(el * G) * di,
+          t.z + Math.cos(az * G) * Math.cos(el * G) * di);
+        camara.lookAt(t);
+      }, () => { controles.enabled = true; controles.update(); });
     }
 
-    function restablecer() {
-      vista = 'exterior';
-      controles.maxPolarAngle = Math.PI / 2 - 0.04;
-      irA(new THREE.Vector3(8, 4.8, 10), new THREE.Vector3(0, 1.5, 0));
+    function ubicarLuces(caja) {
+      const tam = caja.getSize(new THREE.Vector3());
+      const centro = caja.getCenter(new THREE.Vector3());
+      const radio = Math.max(tam.x, tam.y, tam.z);
+      sol.target.position.set(centro.x, 0, centro.z);
+      sol.position.set(centro.x - radio * 1.1, radio * 2.2, centro.z + radio * 1.5);
+      const cam = sol.shadow.camera;
+      const lado = radio * 1.25;
+      cam.left = -lado; cam.right = lado; cam.top = lado; cam.bottom = -lado;
+      cam.near = 0.1; cam.far = radio * 6;
+      cam.updateProjectionMatrix();
+      sombra.scale.set(radio * 6, radio * 6, 1);
+      sombra.position.x = centro.x; sombra.position.z = centro.z;
+      contacto.scale.set(tam.x * 1.1, tam.z * 1.1, 1);
+      contacto.position.x = centro.x; contacto.position.z = centro.z;
     }
 
-    function mirar(posicion) {
-      if (vista !== 'exterior') return;
-      irA(posicionCamara(posicion, 12.5, 4.2), new THREE.Vector3(0, 1.6, 0));
+    // ---------- puertas ----------
+    function moverPuertas(abrir, animado) {
+      if (!actual) return;
+      abiertas = abrir;
+      for (const p of actual.puertas) {
+        const desde = p.angulo;
+        const hasta = abrir ? APERTURA_PUERTA : 0;
+        const fijar = (k) => { p.angulo = desde + (hasta - desde) * k; p.objeto.rotation.y = p.base + p.signo * p.angulo; };
+        if (animado) animar(900, fijar); else fijar(1);
+      }
+      sucio = true;
     }
 
-    function cambiarVista(v) {
-      vista = v;
-      if (v === 'planta') {
-        controles.maxPolarAngle = Math.PI / 2 - 0.04;
-        irA(new THREE.Vector3(0, 16, 0.01), new THREE.Vector3(0, 0, 0));
-      } else {
-        restablecer();
+    // ---------- API ----------
+    /**
+     * Muestra un modelo. Devuelve una promesa con { estado: 'listo' | 'faltante' | 'error', puertas }.
+     * Si mientras carga se pide otro, este se descarta en silencio ({ estado: 'descartado' }).
+     */
+    async function mostrar(datos) {
+      const n = ++pedido;
+      enCurso = true;
+      try {
+        return await mostrarSinMarca(datos, n);
+      } finally {
+        if (n === pedido) enCurso = false;
       }
     }
+    let enCurso = false;
 
-    function setNoche(v) { noche = v; aplicarLuz(); dibujar(); }
-
-    function capturar() {
-      dibujar();
-      try { return render3d.domElement.toDataURL('image/png'); } catch (e) { return null; }
+    async function mostrarSinMarca(datos, n) {
+      color = datos.color || null;
+      if (actual && actual.id === datos.id) {
+        aplicarColor(actual.objeto, color, true);
+        return { estado: 'listo', puertas: actual.puertas.length };
+      }
+      const yaEnMemoria = cache.has(datos.id) && cache.get(datos.id).objeto;
+      if (!yaEnMemoria) avisar('cargando', { id: datos.id });
+      let objeto;
+      try {
+        objeto = await obtener(datos.id, datos.url);
+      } catch (e) {
+        if (n !== pedido || destruido) return { estado: 'descartado' };
+        quitarActual();
+        const estado = e && e.faltante ? 'faltante' : 'error';
+        avisar(estado, { id: datos.id, error: e });
+        return { estado };
+      }
+      if (n !== pedido || destruido) return { estado: 'descartado' };
+      const cambio = () => {
+        quitarActual();
+        const d = objeto.userData.datos;
+        actual = { id: datos.id, objeto, caja: d.caja, puertas: d.puertas, puntos: d.puntos };
+        for (const p of d.puertas) { p.angulo = 0; p.objeto.rotation.y = p.base; }
+        abiertas = false;
+        aplicarColor(objeto, color, false);
+        escena.add(objeto);
+        ubicarLuces(d.caja);
+        if (primera || encuadreAutomatico) encuadrar(vistaActual, false);
+        else encuadrar('centrar', false);
+        primera = false;
+        recortarCache();
+        sucio = true;
+      };
+      const primera0 = !actual;
+      if (primera0 || reducido()) {
+        cambio();
+      } else {
+        // Transición suave: el lienzo se apaga, cambia el modelo y vuelve.
+        lienzo.classList.add('visor-cambiando');
+        await new Promise((ok) => setTimeout(ok, 180));
+        if (n !== pedido || destruido) return { estado: 'descartado' };
+        cambio();
+        requestAnimationFrame(() => lienzo.classList.remove('visor-cambiando'));
+      }
+      avisar('listo', { id: datos.id, puertas: actual.puertas.length });
+      return { estado: 'listo', puertas: actual.puertas.length };
     }
+    let primera = true;
 
-    function activarToque(si) {
-      controles.enabled = si;
-      contenedor.classList.toggle('activo', si);
+    function quitarActual() {
+      if (actual) escena.remove(actual.objeto);
+      actual = null;
+      sucio = true;
     }
-
-    render3d.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); avisar('contexto_perdido'); });
-
-    camara.position.set(8, 4.8, 10);
-    controles.update();
-    medir();
 
     return {
-      construir, restablecer, mirar, cambiarVista, setNoche, capturar, activarToque,
-      describir: (texto) => render3d.domElement.setAttribute('aria-label', texto),
+      mostrar,
+      colorear(c) { color = c || null; if (actual) aplicarColor(actual.objeto, color, true); },
+      vista(nombre) { encuadreAutomatico = nombre !== 'centrar' ? true : encuadreAutomatico; encuadrar(nombre, true); },
+      alternarPuertas() { moverPuertas(!abiertas, true); return abiertas; },
+      cerrarPuertas() { moverPuertas(false, false); },
+      get puertasAbiertas() { return abiertas; },
+      get cantidadPuertas() { return actual ? actual.puertas.length : 0; },
+      get modeloActual() { return actual ? actual.id : null; },
+      get ocupado() { return enCurso || animaciones.size > 0; },
+      tema(oscuro) {
+        matSombra.opacity = oscuro ? 0.42 : 0.2;
+        matContacto.opacity = oscuro ? 0.32 : 0.1;
+        r3.toneMappingExposure = oscuro ? 0.95 : 1.0;
+        sucio = true;
+      },
+      describir(texto) { lienzo.setAttribute('aria-label', texto); },
+      /** Color actual de un material, en hexadecimal sRGB (para pruebas). */
+      colorDe(material) {
+        let hex = null;
+        if (actual) actual.objeto.traverse((o) => { if (!hex && o.isMesh && o.material && o.material.name === material) hex = '#' + o.material.color.clone().convertLinearToSRGB().getHexString(); });
+        return hex;
+      },
+      /** Ángulo de apertura de cada hoja de puerta, en grados con signo (para pruebas). */
+      angulosPuertas() { return actual ? actual.puertas.map((p) => Math.round(((p.objeto.rotation.y - p.base) / G) * 10) / 10) : []; },
+      /** Imagen PNG del cuadro actual (para miniaturas y capturas). */
+      capturar() { r3.render(escena, camara); return lienzo.toDataURL('image/png'); },
       destruir() {
-        if (obs) obs.disconnect();
-        if (grupo) liberar(grupo);
+        destruido = true;
+        cancelAnimationFrame(rafId);
+        if (obs) obs.disconnect(); else window.removeEventListener('resize', medir);
         controles.dispose();
-        render3d.dispose();
-        render3d.domElement.remove();
+        for (const e of cache.values()) if (e.objeto) liberar(e.objeto);
+        cache.clear();
+        if (entorno) entorno.dispose();
+        pmrem.dispose();
+        sombra.geometry.dispose(); matSombra.dispose();
+        contacto.geometry.dispose(); if (matContacto.alphaMap) matContacto.alphaMap.dispose(); matContacto.dispose();
+        r3.dispose();
+        lienzo.remove();
       },
     };
   }
 
-  window.DomoVisor = { crearVisor };
+  window.DomoVisor = { crear, webglDisponible, VISTAS };
 })();

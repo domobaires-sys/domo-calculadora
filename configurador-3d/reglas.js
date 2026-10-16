@@ -1,13 +1,16 @@
 /*
- * Reglas del configurador 3D de DOMO BAIRES.
+ * Reglas del configurador de DOMO BAIRES.
  *
  * Funciones puras: reciben el catálogo y un estado de configuración y
- * devuelven datos nuevos. Las usan la interfaz, el visor 3D, el resumen,
- * la solicitud y las pruebas (y, más adelante, el servidor que reciba
- * las solicitudes, para revalidarlas).
+ * devuelven datos nuevos, sin tocar la página. Las usan la interfaz, el
+ * resumen, la solicitud y las pruebas (y, más adelante, el servidor que
+ * reciba las solicitudes, para revalidarlas).
  *
  * Estado de configuración (única fuente de verdad):
- *   { v, modelo, variante, sel: { categoria: id | [ids] }, cant: { categoria: n }, modalidad }
+ *   { v, modelo, opciones: { trama: 'a', color: 'natural' }, modalidad }
+ *
+ * Nada de lo que se muestra se inventa: los textos salen del catálogo y las
+ * medidas, de los datos que trae cada modelo 3D de DOMO.
  */
 (function (raiz, fabrica) {
   if (typeof module === 'object' && module.exports) module.exports = fabrica();
@@ -15,390 +18,373 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  const PENDIENTE = 'Pendiente de cotización';
+  const FORMATO_CODIGO = 'd1';
+  const CLAVE_ENTREGA = 'entrega';
+  const ID_VALIDO = /^[a-z0-9_]+$/;
+  const CODIGO_VALIDO = /^[A-Za-z0-9._-]+$/;
+
   const copiar = (o) => JSON.parse(JSON.stringify(o));
 
+  // ---------- búsquedas ----------
   function modeloDe(cat, id) { return cat.modelos.find((m) => m.id === id) || null; }
-  function varianteDe(modelo, id) { return modelo ? modelo.variantes.find((v) => v.id === id) || null : null; }
-  function categoriaDe(cat, id) { return cat.categorias.find((c) => c.id === id) || null; }
-  function opcionDe(cat, id) {
-    for (const c of cat.categorias) {
-      const o = c.opciones.find((x) => x.id === id);
-      if (o) return { categoria: c, opcion: o };
-    }
-    return null;
-  }
+  function modalidadDe(cat, id) { return cat.modalidades.find((x) => x.id === id) || null; }
+  function opcionesDe(modelo) { return (modelo && modelo.opciones) || []; }
+  function valorDe(opcion, id) { return (opcion && opcion.valores.find((v) => v.id === id)) || null; }
 
-  function seleccionadas(estado) {
-    const ids = [];
-    for (const v of Object.values(estado.sel || {})) {
-      if (Array.isArray(v)) ids.push(...v);
-      else if (v) ids.push(v);
-    }
-    return ids;
-  }
-
-  function limiteCantidad(cat, estado, catId) {
-    const c = categoriaDe(cat, catId);
-    if (!c || !c.cantidad) return null;
-    const m = modeloDe(cat, estado.modelo);
-    const v = varianteDe(m, estado.variante);
-    let max = c.cantidad.max;
-    if (m && m.posiciones && c.posicion && m.posiciones[c.posicion]) max = Math.min(max, m.posiciones[c.posicion].length);
-    if (m && m.limites && m.limites[catId] && typeof m.limites[catId].max === 'number') max = Math.min(max, m.limites[catId].max);
-    let min = c.cantidad.min;
-    let fija = null;
-    if (v && v.cantidades_fijas && typeof v.cantidades_fijas[catId] === 'number') {
-      fija = Math.min(v.cantidades_fijas[catId], max);
-      min = max = fija;
-    }
-    return { min, max, fija };
-  }
-
-  /**
-   * Disponibilidad de una opción para el estado actual.
-   *  - disponible: false → bloqueo firme (modelo, variante cerrada, retirada).
-   *  - cambios: la opción se puede elegir, pero obliga a cambiar otras.
-   */
-  function evaluarOpcion(cat, estado, catId, opId) {
-    const c = categoriaDe(cat, catId);
-    const o = c && c.opciones.find((x) => x.id === opId);
-    if (!o) return { disponible: false, motivo: 'La opción no existe en el catálogo.' };
-    if (o.estado === 'retirado') return { disponible: false, motivo: 'Opción retirada del catálogo.' };
-    const m = modeloDe(cat, estado.modelo);
-    if (o.modelos && m && !o.modelos.includes(m.id)) {
-      return { disponible: false, motivo: `No está disponible para ${m.nombre}.` };
-    }
-    const v = varianteDe(m, estado.variante);
-    if (v && o.variantes && !o.variantes.includes(v.id)) {
-      return { disponible: false, motivo: `No está disponible en ${v.nombre}.` };
-    }
-    if (v && v.fija && v.fija[catId] && v.fija[catId] !== opId) {
-      const fija = c.opciones.find((x) => x.id === v.fija[catId]);
-      return { disponible: false, motivo: `${v.nombre} es un conjunto cerrado: trae ${fija ? fija.nombre : 'otra opción'}.` };
-    }
-    if (estado.modalidad && o.modalidades && !o.modalidades.includes(estado.modalidad)) {
-      return { disponible: false, motivo: 'No está disponible en la modalidad elegida.' };
-    }
-    const ya = seleccionadas(estado).includes(opId);
-    if (ya) return { disponible: true, cambios: [] };
-    const prueba = aplicar(cat, estado, { tipo: 'elegir', categoria: catId, opcion: opId });
-    return { disponible: true, cambios: prueba.cambios };
-  }
-
-  function conflictoCon(cat, opId, otras) {
-    const info = opcionDe(cat, opId);
-    if (!info) return null;
-    for (const otra of otras) {
-      if (otra === opId) continue;
-      const oi = opcionDe(cat, otra);
-      if (!oi) continue;
-      if ((info.opcion.excluye || []).includes(otra)) return { con: otra, motivo: info.opcion.motivo_excluye || `No combina con ${oi.opcion.nombre}.` };
-      if ((oi.opcion.excluye || []).includes(opId)) return { con: otra, motivo: oi.opcion.motivo_excluye || `No combina con ${oi.opcion.nombre}.` };
-    }
-    return null;
-  }
-
-  function firme(cat, estado, catId, opId) {
-    const c = categoriaDe(cat, catId);
-    const o = c && c.opciones.find((x) => x.id === opId);
-    if (!o || o.estado === 'retirado') return false;
-    const m = modeloDe(cat, estado.modelo);
-    if (o.modelos && m && !o.modelos.includes(m.id)) return false;
-    const v = varianteDe(m, estado.variante);
-    if (v && o.variantes && !o.variantes.includes(v.id)) return false;
-    if (v && v.fija && v.fija[catId] && v.fija[catId] !== opId) return false;
-    if (estado.modalidad && o.modalidades && !o.modalidades.includes(estado.modalidad)) return false;
-    return true;
-  }
-
-  function nombreOpcion(cat, id) {
-    const i = opcionDe(cat, id);
-    return i ? i.opcion.nombre : id;
-  }
-
-  /**
-   * Deja el estado coherente con el catálogo. Las categorías en `fijas`
-   * (lo que el cliente acaba de elegir) se respetan; las demás se adaptan.
-   * Devuelve el estado nuevo y la lista de cambios, en castellano.
-   */
-  function normalizar(cat, entrada, fijas) {
-    const estado = copiar(entrada || {});
-    const cambios = [];
-    const prioridad = new Set(fijas || []);
-    estado.v = cat.version_catalogo;
-    estado.sel = estado.sel || {};
-    estado.cant = estado.cant || {};
-
-    let m = modeloDe(cat, estado.modelo);
-    if (!m) {
-      if (estado.modelo) cambios.push({ categoria: 'modelo', antes: estado.modelo, despues: cat.modelos[0].id, texto: 'El modelo guardado ya no existe; se eligió el primero de la colección.' });
-      m = cat.modelos[0];
-      estado.modelo = m.id;
-    }
-    let v = varianteDe(m, estado.variante);
-    if (!v) {
-      if (estado.variante) cambios.push({ categoria: 'variante', antes: estado.variante, despues: m.variantes[0].id, texto: `${m.nombre} no tiene esa variante; se eligió ${m.variantes[0].nombre}.` });
-      v = m.variantes[0];
-      estado.variante = v.id;
-    }
-    if (estado.modalidad && !(estado.modalidad in (m.modalidades || {}))) {
-      cambios.push({ categoria: 'modalidad', antes: estado.modalidad, despues: null, texto: `La modalidad elegida no figura para ${m.nombre}; hay que elegirla de nuevo.` });
-      estado.modalidad = null;
-    }
-
-    const orden = [...cat.categorias].sort((a, b) => (prioridad.has(b.id) ? 1 : 0) - (prioridad.has(a.id) ? 1 : 0));
-
-    // 1) Requisitos de lo elegido por el cliente: se agregan antes de adaptar el resto.
-    for (const c of orden) {
-      if (!prioridad.has(c.id)) continue;
-      const elegidas = [].concat(estado.sel[c.id] || []);
-      for (const id of elegidas) {
-        const o = c.opciones.find((x) => x.id === id);
-        if (!o || !o.requiere || !o.requiere.length) continue;
-        if (o.requiere.some((r) => seleccionadas(estado).includes(r))) continue;
-        const req = opcionDe(cat, o.requiere.find((r) => opcionDe(cat, r) && firme(cat, estado, opcionDe(cat, r).categoria.id, r)) || o.requiere[0]);
-        if (!req) continue;
-        const rc = req.categoria;
-        const antes = estado.sel[rc.id];
-        if (rc.control === 'multiple') estado.sel[rc.id] = [...new Set([...(antes || []), req.opcion.id])];
-        else estado.sel[rc.id] = req.opcion.id;
-        prioridad.add(rc.id);
-        cambios.push({ categoria: rc.id, antes: antes || null, despues: req.opcion.id, texto: `${rc.nombre}: pasa a ${req.opcion.nombre} (${o.motivo_requiere || `lo requiere ${o.nombre}`}).` });
-      }
-    }
-
-    // 2) Cada categoría: opción firme, sin conflictos y con sus requisitos.
-    for (const c of orden) {
-      const respetar = prioridad.has(c.id);
-      const otras = () => seleccionadas(estado).filter((id) => !c.opciones.some((o) => o.id === id));
-      const valida = (id) => {
-        if (!firme(cat, estado, c.id, id)) return false;
-        if (!respetar && conflictoCon(cat, id, otras())) return false;
-        const o = c.opciones.find((x) => x.id === id);
-        if (!respetar && o.requiere && o.requiere.length && !o.requiere.some((r) => seleccionadas(estado).includes(r))) return false;
-        return true;
-      };
-      if (c.control === 'multiple') {
-        const antes = Array.isArray(estado.sel[c.id]) ? estado.sel[c.id] : [];
-        const despues = antes.filter(valida);
-        for (const id of antes) {
-          if (!despues.includes(id)) cambios.push({ categoria: c.id, antes: id, despues: null, texto: `${c.nombre}: se quita ${nombreOpcion(cat, id)} porque no es compatible con la nueva elección.` });
-        }
-        estado.sel[c.id] = despues;
-        continue;
-      }
-      const actual = estado.sel[c.id];
-      const fijaVar = v.fija && v.fija[c.id];
-      if (fijaVar && actual !== fijaVar) {
-        estado.sel[c.id] = fijaVar;
-        if (actual !== undefined) cambios.push({ categoria: c.id, antes: actual || null, despues: fijaVar, texto: `${c.nombre}: ${v.nombre} trae ${nombreOpcion(cat, fijaVar)}.` });
-        continue;
-      }
-      if (actual && valida(actual)) continue;
-      if (actual === null && !c.requerido) continue;
-      const candidatas = [c.predeterminada, ...c.opciones.map((o) => o.id)].filter(Boolean);
-      const nueva = candidatas.find(valida) || null;
-      const final = nueva;
-      if (actual !== undefined && actual !== final) {
-        cambios.push({
-          categoria: c.id,
-          antes: actual || null,
-          despues: final,
-          texto: final
-            ? `${c.nombre}: ${actual ? `${nombreOpcion(cat, actual)} no es compatible; ` : ''}pasa a ${nombreOpcion(cat, final)}.`
-            : `${c.nombre}: no queda ninguna opción compatible.`,
-        });
-      }
-      estado.sel[c.id] = final;
-    }
-
-    // 3) Cantidades dentro de sus límites.
-    for (const c of cat.categorias) {
-      if (!c.cantidad) continue;
-      const lim = limiteCantidad(cat, estado, c.id);
-      const antes = estado.cant[c.id];
-      let n = typeof antes === 'number' ? antes : c.cantidad.predeterminada;
-      n = Math.max(lim.min, Math.min(lim.max, n));
-      if (!estado.sel[c.id]) n = 0;
-      if (typeof antes === 'number' && antes !== n) {
-        cambios.push({ categoria: c.id, antes, despues: n, texto: `${c.cantidad.nombre}: pasa de ${antes} a ${n} (${lim.fija !== null ? `${v.nombre} trae ${lim.fija}` : `máximo ${lim.max} en ${m.nombre}`}).` });
-      }
-      estado.cant[c.id] = n;
-    }
-    return { estado, cambios };
-  }
-
-  /** Aplica un cambio del cliente y devuelve { estado, cambios } sin modificar el original. */
-  function aplicar(cat, estado, accion) {
-    const e = copiar(estado);
-    const fijas = [];
-    switch (accion.tipo) {
-      case 'modelo':
-        e.modelo = accion.modelo;
-        e.variante = null;
-        break;
-      case 'variante':
-        e.variante = accion.variante;
-        break;
-      case 'elegir': {
-        const c = categoriaDe(cat, accion.categoria);
-        if (c.control === 'multiple') {
-          const lista = new Set(e.sel[c.id] || []);
-          if (lista.has(accion.opcion)) lista.delete(accion.opcion); else lista.add(accion.opcion);
-          e.sel[c.id] = [...lista];
-        } else {
-          e.sel[c.id] = accion.opcion;
-        }
-        fijas.push(c.id);
-        break;
-      }
-      case 'cantidad':
-        e.cant[accion.categoria] = accion.cantidad;
-        fijas.push(accion.categoria);
-        break;
-      case 'modalidad':
-        e.modalidad = accion.modalidad;
-        break;
-      default:
-        throw new Error('Acción desconocida: ' + accion.tipo);
-    }
-    const r = normalizar(cat, e, fijas);
-    // El cambio que pidió el cliente no se informa como "cambio forzado".
-    r.cambios = r.cambios.filter((x) => !(accion.tipo === 'modelo' && x.categoria === 'variante'));
-    return r;
-  }
-
+  // ---------- estado ----------
   function crearEstado(cat, modeloId) {
-    return normalizar(cat, { modelo: modeloId || cat.modelos[0].id, variante: null, sel: {}, cant: {}, modalidad: null }).estado;
+    const m = modeloDe(cat, modeloId) || cat.modelos[0];
+    const opciones = {};
+    for (const o of opcionesDe(m)) opciones[o.id] = o.predeterminada;
+    return { v: cat.version_catalogo, modelo: m.id, opciones, modalidad: null };
   }
 
-  /** Puertas y ventanas con su posición, para el visor 3D. */
-  function aberturas(cat, estado) {
-    const m = modeloDe(cat, estado.modelo);
-    const lista = [];
-    for (const c of cat.categorias) {
-      if (!c.posicion || !estado.sel[c.id]) continue;
-      const pos = (m.posiciones && m.posiciones[c.posicion]) || [];
-      const n = c.cantidad ? estado.cant[c.id] || 0 : 1;
-      for (let i = 0; i < Math.min(n, pos.length); i++) {
-        const o = c.opciones.find((x) => x.id === estado.sel[c.id]);
-        lista.push({ tipo: c.posicion, categoria: c.id, posicion: pos[i], opcion: o.id, visual: o.visual || {} });
+  /**
+   * Deja el estado coherente con el catálogo: modelo existente, solo las
+   * opciones de ese modelo con valores válidos y una modalidad que exista.
+   * Devuelve el estado nuevo y la lista de ajustes, en castellano.
+   */
+  function normalizar(cat, entrada) {
+    const e = entrada && typeof entrada === 'object' ? copiar(entrada) : {};
+    const cambios = [];
+    let m = modeloDe(cat, e.modelo);
+    if (!m) {
+      if (e.modelo) cambios.push(`El modelo "${e.modelo}" no está en el catálogo; se eligió ${cat.modelos[0].nombre}.`);
+      m = cat.modelos[0];
+    }
+    const antes = e.opciones && typeof e.opciones === 'object' ? e.opciones : {};
+    const opciones = {};
+    for (const o of opcionesDe(m)) {
+      const pedido = antes[o.id];
+      if (pedido !== undefined && !valorDe(o, pedido)) {
+        cambios.push(`${o.nombre}: la opción guardada ya no existe; se eligió ${valorDe(o, o.predeterminada).nombre}.`);
       }
+      opciones[o.id] = valorDe(o, pedido) ? pedido : o.predeterminada;
     }
-    return lista;
+    for (const k of Object.keys(antes)) {
+      if (!opcionesDe(m).some((o) => o.id === k)) cambios.push(`${m.nombre} no tiene la opción "${k}"; se quitó.`);
+    }
+    let modalidad = e.modalidad || null;
+    if (modalidad && !modalidadDe(cat, modalidad)) {
+      cambios.push('La modalidad de entrega guardada ya no existe; elegila de nuevo.');
+      modalidad = null;
+    }
+    return { estado: { v: cat.version_catalogo, modelo: m.id, opciones, modalidad }, cambios };
   }
 
-  function textoPrecio(cat, precio) {
-    if (!precio || precio.estado === 'pendiente') return 'Pendiente de cotización';
-    if (precio.estado === 'incluido') return 'Incluido';
-    if (precio.estado === 'sin_cargo') return 'Sin cargo';
-    if (precio.estado === 'valor' && typeof precio.importe === 'number') {
-      const s = (cat.precios && cat.precios.moneda) || '';
-      return `${s} ${precio.importe.toLocaleString('es-AR')}`.trim();
+  /** Aplica una acción del cliente y devuelve { estado, cambios } sin modificar el original. */
+  function aplicar(cat, estado, accion) {
+    const e = normalizar(cat, estado).estado;
+    switch (accion && accion.tipo) {
+      case 'modelo': {
+        if (!modeloDe(cat, accion.modelo)) return { estado: e, cambios: ['Ese modelo no está en el catálogo.'] };
+        if (accion.modelo === e.modelo) return { estado: e, cambios: [] };
+        // Cada modelo tiene sus propias opciones: las del anterior no se arrastran.
+        const nuevo = crearEstado(cat, accion.modelo);
+        nuevo.modalidad = e.modalidad;
+        return { estado: nuevo, cambios: [] };
+      }
+      case 'opcion': {
+        const o = opcionesDe(modeloDe(cat, e.modelo)).find((x) => x.id === accion.opcion);
+        if (!o) return { estado: e, cambios: ['Esa opción no corresponde al modelo elegido.'] };
+        if (!valorDe(o, accion.valor)) return { estado: e, cambios: [`${o.nombre}: esa opción no existe.`] };
+        e.opciones[o.id] = accion.valor;
+        return { estado: e, cambios: [] };
+      }
+      case 'modalidad': {
+        if (!modalidadDe(cat, accion.modalidad)) return { estado: e, cambios: ['Esa modalidad de entrega no existe.'] };
+        e.modalidad = accion.modalidad;
+        return { estado: e, cambios: [] };
+      }
+      default:
+        throw new Error('Acción desconocida: ' + (accion && accion.tipo));
     }
-    return 'Pendiente de cotización';
   }
 
-  /** Resumen legible y exacto de la configuración, para pantalla y solicitud. */
+  // ---------- modelo 3D, color y medidas ----------
+  /** Archivo 3D que corresponde a la configuración (la trama del Áureo elige el GLB). */
+  function archivo3d(cat, estado) {
+    const m = modeloDe(cat, estado.modelo);
+    if (!m) return null;
+    let id = m.modelo_3d;
+    for (const o of opcionesDe(m)) {
+      const v = valorDe(o, estado.opciones && estado.opciones[o.id]);
+      if (o.tipo === 'modelo_3d' && v && v.archivo_3d) id = v.archivo_3d;
+    }
+    return (m.archivos_3d || []).find((a) => a.id === id) || null;
+  }
+
+  /** Color elegido para un material del modelo 3D, o null si va el color original del archivo. */
+  function colorMaterial(cat, estado) {
+    const m = modeloDe(cat, estado.modelo);
+    for (const o of opcionesDe(m)) {
+      if (o.tipo !== 'color_material') continue;
+      const v = valorDe(o, estado.opciones && estado.opciones[o.id]);
+      return { material: o.material, hex: (v && v.hex) || null };
+    }
+    return null;
+  }
+
+  function medidasDe(cat, estado) {
+    const a = archivo3d(cat, estado);
+    if (a && a.medidas) return a.medidas;
+    const m = modeloDe(cat, estado.modelo);
+    return (m && m.medidas) || null;
+  }
+
+  /** Número con coma decimal, sin ceros de más: 4.747 → "4,75"; 3 → "3"; 15.48 (1 decimal) → "15,5". */
+  function numero(n, decimales) {
+    if (typeof n !== 'number' || !isFinite(n)) return '';
+    // Redondeo "de manual" (1,795 → 1,80) aunque el número binario quede apenas por debajo.
+    const f = Math.pow(10, decimales);
+    let s = (Math.round(n * f + 1e-7 * Math.sign(n)) / f).toFixed(decimales);
+    if (s.includes('.')) s = s.replace(/0+$/, '').replace(/\.$/, '');
+    return s.replace('.', ',');
+  }
+
+  function unidadDe(clave) {
+    if (/_m2$/.test(clave)) return 'm²';
+    if (/_m$/.test(clave)) return 'm';
+    return '';
+  }
+
+  /** Valor de una medida sin unidad: largos con 2 decimales, superficies con 1, cantidades enteras. */
+  function valorMedida(clave, valor) {
+    const u = unidadDe(clave);
+    return numero(valor, u === 'm²' ? 1 : u === 'm' ? 2 : 0);
+  }
+
+  function textoMedida(clave, valor) {
+    const u = unidadDe(clave);
+    const v = valorMedida(clave, valor);
+    return u ? `${v} ${u}` : v;
+  }
+
+  /** "7,85 × 7,87 × 4,75 m" (ancho × fondo × alto) o null si el modelo 3D todavía no está. */
+  function medidasPrincipales(medidas) {
+    if (!medidas || typeof medidas.ancho_m !== 'number') return null;
+    return `${valorMedida('ancho_m', medidas.ancho_m)} × ${valorMedida('fondo_m', medidas.fondo_m)} × ${valorMedida('alto_m', medidas.alto_m)} m`;
+  }
+
+  /** Medidas extra que el catálogo pide mostrar, en su orden, con su etiqueta. */
+  function listaMedidas(cat, medidas) {
+    if (!medidas) return [];
+    const etiquetas = cat.etiquetas_medidas || {};
+    return (cat.medidas_visibles || [])
+      .filter((k) => typeof medidas[k] === 'number')
+      .map((k) => ({ clave: k, etiqueta: etiquetas[k] || k, texto: textoMedida(k, medidas[k]) }));
+  }
+
+  /** Datos disponibles para las plantillas de composición: medidas del modelo 3D y cantidad de puertas. */
+  function datosModelo3d(cat, estado) {
+    const a = archivo3d(cat, estado);
+    const datos = Object.assign({}, medidasDe(cat, estado) || {});
+    if (a && typeof a.puertas === 'number') datos.puertas = a.puertas;
+    return datos;
+  }
+
+  /**
+   * Lista "qué incluye" del modelo. Cada elemento puede traer un texto fijo
+   * (`valor`) o una `plantilla` con {claves} que se completan con los datos
+   * del modelo 3D. Lo que falta o está pendiente se muestra "A confirmar".
+   */
+  function composicion(cat, estado) {
+    const m = modeloDe(cat, estado.modelo);
+    const datos = datosModelo3d(cat, estado);
+    return ((m && m.composicion) || []).map((c) => {
+      let texto = null;
+      if (c.estado !== 'pendiente') {
+        if (c.plantilla) {
+          let falta = false;
+          texto = c.plantilla.replace(/\{([\p{L}\p{N}_]+)\}/gu, (_, k) => {
+            if (typeof datos[k] !== 'number') { falta = true; return ''; }
+            return valorMedida(k, datos[k]);
+          });
+          if (falta) texto = null;
+        } else if (c.valor) {
+          texto = c.valor;
+        }
+      }
+      return { id: c.id, nombre: c.nombre, texto: texto || 'A confirmar', pendiente: !texto };
+    });
+  }
+
+  // ---------- precios ----------
+  function miles(n) {
+    const [ent, dec] = String(n).split('.');
+    const conPuntos = ent.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return dec ? `${conPuntos},${dec}` : conPuntos;
+  }
+
+  /** Un precio sin dato, sin moneda o en cero nunca se muestra como número: es "Pendiente de cotización". */
+  function textoPrecio(precio) {
+    if (!precio || precio.estado !== 'valor') return PENDIENTE;
+    if (typeof precio.importe !== 'number' || !(precio.importe > 0) || !precio.moneda) return PENDIENTE;
+    const iva = precio.iva === 'incluido' ? ' (IVA incluido)' : precio.iva === 'no_incluido' ? ' + IVA' : '';
+    return `${precio.moneda} ${miles(precio.importe)}${iva}`;
+  }
+
+  function precioDe(cat, estado) {
+    const m = modeloDe(cat, estado.modelo);
+    if (!m || !estado.modalidad) return null;
+    return (m.precios && m.precios[estado.modalidad]) || null;
+  }
+
+  // ---------- resumen ----------
+  /** Líneas del resumen, iguales en pantalla y en la solicitud. */
   function resumen(cat, estado) {
     const m = modeloDe(cat, estado.modelo);
-    const v = varianteDe(m, estado.variante);
-    const lineas = [];
-    lineas.push({ clave: 'modelo', etiqueta: 'Modelo', valor: m.nombre, precio: null, estado: m.estado });
-    lineas.push({ clave: 'variante', etiqueta: 'Variante', valor: `${v.nombre} (${v.tipo === 'cerrada' ? 'conjunto cerrado' : 'combinable'})`, precio: null, estado: v.estado });
-    let pendientes = 0;
-    let total = 0;
-    const sumar = (p, n) => {
-      if (!p || p.estado === 'pendiente' || (p.estado === 'valor' && typeof p.importe !== 'number')) pendientes++;
-      else if (p.estado === 'valor') total += p.importe * (n || 1);
-    };
-    for (const c of cat.categorias) {
-      const val = estado.sel[c.id];
-      if (c.control === 'multiple') {
-        if (!val || !val.length) { lineas.push({ clave: c.id, etiqueta: c.nombre, valor: 'Ninguno', precio: null, estado: null }); continue; }
-        for (const id of val) {
-          const o = c.opciones.find((x) => x.id === id);
-          sumar(o.precio, 1);
-          lineas.push({ clave: c.id, etiqueta: c.nombre, valor: o.nombre, precio: textoPrecio(cat, o.precio), estado: o.estado });
-        }
-        continue;
-      }
-      if (!val) { lineas.push({ clave: c.id, etiqueta: c.nombre, valor: c.cantidad ? 'Sin ventanas' : 'Ninguna', precio: null, estado: null }); continue; }
-      const o = c.opciones.find((x) => x.id === val);
-      const n = c.cantidad ? estado.cant[c.id] || 0 : 1;
-      if (c.cantidad && n === 0) { lineas.push({ clave: c.id, etiqueta: c.nombre, valor: 'Sin ventanas', precio: null, estado: null }); continue; }
-      sumar(o.precio, n);
-      lineas.push({ clave: c.id, etiqueta: c.nombre, valor: c.cantidad ? `${n} × ${o.nombre}` : o.nombre, precio: textoPrecio(cat, o.precio), estado: o.estado });
+    const lineas = [{ clave: 'modelo', etiqueta: 'Modelo', valor: m.nombre }];
+    const ops = opcionesDe(m);
+    if (!ops.length) lineas.push({ clave: 'diseno', etiqueta: 'Diseño', valor: 'Diseño único' });
+    for (const o of ops) {
+      const v = valorDe(o, estado.opciones[o.id]);
+      lineas.push({ clave: o.id, etiqueta: o.nombre, valor: v ? v.nombre : 'Sin elegir' });
     }
-    const mod = estado.modalidad ? cat.modalidades.find((x) => x.id === estado.modalidad) : null;
-    lineas.push({ clave: 'modalidad', etiqueta: 'Modalidad', valor: mod ? mod.nombre : 'Sin elegir', precio: null, estado: mod ? m.modalidades[mod.id] : null });
-    return {
-      lineas,
-      total: pendientes ? { estado: 'pendiente', texto: 'Pendiente de cotización' } : { estado: 'estimado', texto: textoPrecio(cat, { estado: 'valor', importe: total }) },
-      version: cat.version_catalogo,
-    };
+    const med = medidasDe(cat, estado);
+    const principales = medidasPrincipales(med);
+    lineas.push({
+      clave: 'medidas',
+      etiqueta: 'Medidas (ancho × fondo × alto)',
+      valor: principales ? `${principales}, según el modelo 3D de DOMO` : 'Modelo 3D en preparación',
+    });
+    if (med && typeof med.piso_area_m2 === 'number') {
+      lineas.push({ clave: 'superficie', etiqueta: 'Superficie de piso', valor: textoMedida('piso_area_m2', med.piso_area_m2) });
+    }
+    const mod = modalidadDe(cat, estado.modalidad);
+    lineas.push({ clave: 'entrega', etiqueta: 'Entrega', valor: mod ? mod.nombre : 'Sin elegir' });
+    const precio = textoPrecio(precioDe(cat, estado));
+    lineas.push({ clave: 'precio', etiqueta: 'Precio', valor: precio });
+    return { lineas, precio };
   }
 
-  /** Revalidación completa, antes de generar la solicitud o al recibirla en un servidor. */
-  function validar(cat, estado) {
-    const errores = [];
-    if (!estado || typeof estado !== 'object') return ['La configuración está vacía.'];
-    if (estado.v !== cat.version_catalogo) errores.push(`La configuración es de la versión ${estado.v || 'desconocida'} del catálogo; la actual es ${cat.version_catalogo}.`);
+  /** Resumen de una línea para la barra: "Dormi Áureo · Opción A · Natural · Kit". */
+  function resumenCorto(cat, estado) {
     const m = modeloDe(cat, estado.modelo);
-    if (!m) return errores.concat('El modelo no existe.');
-    if (!varianteDe(m, estado.variante)) errores.push('La variante no corresponde al modelo.');
-    if (!estado.modalidad) errores.push('Falta elegir la modalidad de entrega.');
-    else if (!(estado.modalidad in (m.modalidades || {}))) errores.push('La modalidad no corresponde al modelo.');
-    const r = normalizar(cat, estado, cat.categorias.map((c) => c.id));
-    for (const ch of r.cambios) errores.push(ch.texto);
-    for (const c of cat.categorias) {
-      const val = (estado.sel || {})[c.id];
-      for (const id of [].concat(val || [])) {
-        if (!c.opciones.some((o) => o.id === id)) errores.push(`${c.nombre}: la opción ${id} no existe.`);
-        const conf = conflictoCon(cat, id, seleccionadas(estado));
-        if (conf) errores.push(`${c.nombre}: ${conf.motivo}`);
-        const o = c.opciones.find((x) => x.id === id);
-        if (o && o.requiere && o.requiere.length && !o.requiere.some((x) => seleccionadas(estado).includes(x))) {
-          errores.push(`${c.nombre}: ${o.motivo_requiere || 'le falta una opción requerida.'}`);
-        }
+    const partes = [m.nombre];
+    const ops = opcionesDe(m);
+    if (!ops.length) partes.push('Diseño único');
+    for (const o of ops) { const v = valorDe(o, estado.opciones[o.id]); if (v) partes.push(v.nombre); }
+    const mod = modalidadDe(cat, estado.modalidad);
+    partes.push(mod ? mod.nombre : 'Entrega sin elegir');
+    return partes.join(' · ');
+  }
+
+  // ---------- solicitud ----------
+  function validarConfiguracion(cat, estado) {
+    const errores = [];
+    if (!modeloDe(cat, estado && estado.modelo)) errores.push('Elegí un modelo.');
+    if (!estado || !modalidadDe(cat, estado.modalidad)) errores.push('Elegí la modalidad de entrega.');
+    return errores;
+  }
+
+  const limpiar = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+
+  /** Valida los datos de contacto. Devuelve { ok, errores: { campo: mensaje } }. */
+  function validarContacto(datos) {
+    const d = datos || {};
+    const errores = {};
+    const nombre = limpiar(d.nombre);
+    const contacto = limpiar(d.contacto);
+    const localidad = limpiar(d.localidad);
+    const comentario = String(d.comentario == null ? '' : d.comentario).trim();
+    if (nombre.length < 2) errores.nombre = 'Escribí tu nombre.';
+    else if (nombre.length > 80) errores.nombre = 'El nombre puede tener hasta 80 caracteres.';
+    if (!contacto) {
+      errores.contacto = 'Dejanos un teléfono o un email.';
+    } else if (contacto.includes('@')) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(contacto)) errores.contacto = 'Revisá el email: parece incompleto.';
+    } else {
+      const digitos = contacto.replace(/\D/g, '');
+      if (!/^[0-9+()\-.\s]+$/.test(contacto) || digitos.length < 8 || digitos.length > 15) {
+        errores.contacto = 'Escribí un teléfono con código de área o un email.';
       }
-      if (c.requerido && !val) errores.push(`${c.nombre}: falta elegir una opción.`);
     }
-    return [...new Set(errores)];
+    if (localidad.length < 2) errores.localidad = 'Indicá la localidad donde va la obra.';
+    else if (localidad.length > 80) errores.localidad = 'La localidad puede tener hasta 80 caracteres.';
+    if (comentario.length > 1000) errores.comentario = 'El comentario puede tener hasta 1000 caracteres.';
+    if (d.consentimiento !== true) errores.consentimiento = 'Para preparar la solicitud tenés que aceptar el uso de tus datos.';
+    return { ok: Object.keys(errores).length === 0, errores };
   }
 
-  // Enlace compartible: solo identificadores y versión, nunca datos personales.
+  /** Texto exacto de la solicitud, listo para copiar. No se envía a ningún lado. */
+  function textoSolicitud(cat, estado, datos) {
+    const r = resumen(cat, estado);
+    const comentario = String((datos && datos.comentario) || '').trim().replace(/\r\n?/g, '\n');
+    const lineas = [
+      'Solicitud de presupuesto · DOMO BAIRES',
+      '',
+      ...r.lineas.map((l) => `${l.etiqueta}: ${l.valor}`),
+      '',
+      `Nombre: ${limpiar(datos.nombre)}`,
+      `Contacto: ${limpiar(datos.contacto)}`,
+      `Localidad de la obra: ${limpiar(datos.localidad)}`,
+    ];
+    if (comentario) lineas.push(`Comentario: ${comentario}`);
+    lineas.push('', `Código de configuración: ${codificar(estado)} (catálogo ${cat.version_catalogo})`);
+    return lineas.join('\n');
+  }
+
+  // ---------- código de configuración ----------
+  /**
+   * Código para compartir una configuración: solo letras, números, punto,
+   * guion y guion bajo (el visor de páginas privadas solo pasa #códigos simples).
+   * Nunca lleva datos personales. Ejemplo: d1.dormi_aureo.trama-b.color-azul.entrega-kit
+   */
   function codificar(estado) {
-    const datos = { v: estado.v, m: estado.modelo, va: estado.variante, s: estado.sel, c: estado.cant, mo: estado.modalidad };
-    const json = JSON.stringify(datos);
-    const b64 = typeof Buffer !== 'undefined' ? Buffer.from(json, 'utf8').toString('base64') : btoa(unescape(encodeURIComponent(json)));
-    return 'c1.' + b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const partes = [FORMATO_CODIGO, estado.modelo];
+    for (const [k, v] of Object.entries(estado.opciones || {})) partes.push(`${k}-${v}`);
+    if (estado.modalidad) partes.push(`${CLAVE_ENTREGA}-${estado.modalidad}`);
+    return partes.join('.');
   }
 
+  /** Lee un código. Devuelve un estado sin normalizar, o null si el código no es de este formato. */
   function decodificar(texto) {
-    if (typeof texto !== 'string' || !texto.startsWith('c1.')) return null;
-    try {
-      const b64 = texto.slice(3).replace(/-/g, '+').replace(/_/g, '/');
-      const json = typeof Buffer !== 'undefined' ? Buffer.from(b64, 'base64').toString('utf8') : decodeURIComponent(escape(atob(b64)));
-      const d = JSON.parse(json);
-      return { v: d.v, modelo: d.m, variante: d.va, sel: d.s || {}, cant: d.c || {}, modalidad: d.mo || null };
-    } catch (e) {
-      return null;
+    if (typeof texto !== 'string' || texto.length > 300 || !CODIGO_VALIDO.test(texto)) return null;
+    const partes = texto.split('.');
+    if (partes[0] !== FORMATO_CODIGO || !partes[1] || !ID_VALIDO.test(partes[1])) return null;
+    const estado = { modelo: partes[1], opciones: {}, modalidad: null };
+    for (const p of partes.slice(2)) {
+      const i = p.indexOf('-');
+      if (i < 1) return null;
+      const k = p.slice(0, i);
+      const v = p.slice(i + 1);
+      if (!ID_VALIDO.test(k) || !ID_VALIDO.test(v)) return null;
+      if (k === CLAVE_ENTREGA) estado.modalidad = v;
+      else estado.opciones[k] = v;
     }
+    return estado;
   }
 
-  /** Carga una configuración guardada: la adapta al catálogo actual y explica qué cambió. */
-  function recuperar(cat, guardado) {
-    if (!guardado) return null;
-    const avisos = [];
-    if (guardado.v !== cat.version_catalogo) avisos.push(`Esta configuración se armó con la versión ${guardado.v || 'desconocida'} del catálogo y se adaptó a la ${cat.version_catalogo}.`);
-    const r = normalizar(cat, guardado, cat.categorias.map((c) => c.id));
-    return { estado: r.estado, avisos: avisos.concat(r.cambios.map((c) => c.texto)) };
+  /**
+   * Abre un código compartido: lo adapta al catálogo actual y explica qué cambió.
+   * Con un código viejo o roto vuelve al estado inicial y lo avisa.
+   */
+  function recuperar(cat, texto) {
+    if (!texto) return null;
+    const leido = decodificar(texto);
+    if (!leido) {
+      const viejo = /^c1\./.test(texto);
+      return {
+        estado: crearEstado(cat),
+        avisos: [viejo
+          ? 'El enlace es de una versión anterior del configurador y ya no se puede abrir. Empezá una configuración nueva.'
+          : 'El código de configuración del enlace no es válido. Empezá una configuración nueva.'],
+        valido: false,
+      };
+    }
+    const r = normalizar(cat, leido);
+    return { estado: r.estado, avisos: r.cambios, valido: true };
   }
 
   return {
-    modeloDe, varianteDe, categoriaDe, opcionDe,
-    limiteCantidad, evaluarOpcion, normalizar, aplicar, crearEstado,
-    aberturas, resumen, validar, textoPrecio, codificar, decodificar, recuperar,
+    PENDIENTE, ID_VALIDO, CODIGO_VALIDO,
+    modeloDe, modalidadDe, opcionesDe, valorDe,
+    crearEstado, normalizar, aplicar,
+    archivo3d, colorMaterial, medidasDe, numero, textoMedida, valorMedida, medidasPrincipales, listaMedidas, composicion,
+    textoPrecio, precioDe, resumen, resumenCorto,
+    validarConfiguracion, validarContacto, textoSolicitud,
+    codificar, decodificar, recuperar,
   };
 });

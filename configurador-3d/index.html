@@ -3,31 +3,55 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
 <!--CABEZA-->
 <title>Configurador DOMO BAIRES</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Jost:wght@400;500;600&display=swap">
 <!--/CABEZA-->
 <link rel="stylesheet" href="estilos.css">
 </head>
 <body>
 <!--CUERPO-->
-<div class="envoltura">
+<div class="app" id="app">
   <header class="cabecera">
-    <div class="marca">DOMO BAIRES<small>Configurador · prototipo interno</small></div>
-    <span class="sello" id="sello-version">Prototipo privado · datos sin validar</span>
+    <div class="marca">
+      <img class="logo logo-claro" src="imagenes/logo-domo.png" width="249" height="240" alt="DOMO BAIRES">
+      <img class="logo logo-oscuro" src="imagenes/logo-domo-blanco.png" width="249" height="240" alt="DOMO BAIRES">
+      <div class="marca-texto">
+        <span class="marca-titulo">Configurador de Dormis</span>
+        <span class="marca-sub">DOMO BAIRES</span>
+      </div>
+    </div>
+    <span class="sello">Prototipo privado</span>
   </header>
-  <nav aria-label="Etapas del configurador"><ol class="etapas" id="etapas"></ol></nav>
-  <div id="avisos" aria-live="polite"></div>
-  <main id="contenido"></main>
+
+  <section class="escenario" aria-label="Vista 3D del modelo">
+    <div class="visor" id="visor">
+      <div class="visor-rotulo" id="visor-rotulo"></div>
+      <div class="visor-acciones" id="visor-acciones"></div>
+      <div class="visor-vistas" id="visor-vistas" role="toolbar" aria-label="Vistas de la cámara"></div>
+      <div class="visor-capa" id="visor-capa" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Configuración">
+    <nav class="etapas" aria-label="Etapas de la configuración"><ol id="etapas"></ol></nav>
+    <div class="avisos" id="avisos" aria-live="polite"></div>
+    <div class="etapa" id="etapa"></div>
+    <div class="pie" id="pie"></div>
+  </section>
 </div>
-<div class="barra" id="barra"></div>
-<div id="modal"></div>
+<noscript><p class="sin-js">Este configurador necesita JavaScript activado.</p></noscript>
 <!--/CUERPO-->
+<!--LIBRERIAS-->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+<!--/LIBRERIAS-->
 <script src="reglas.js"></script>
 <script src="visor.js"></script>
 <script src="app.js"></script>

@@ -29,8 +29,8 @@ Cada Dormi se arma **desde el archivo de Blender de DOMO BAIRES** con un script 
 - **Frente**: la puerta principal mira hacia **+Z** del GLB (−Y en Blender). Las vistas "frente" y "3/4" del visor dependen de esto.
 - **Nodo raíz** `modelo`, con datos (`extras`): `id`, `fuente`, `escena`, `coleccion`, `puertas`, `medidas` (`ancho_m`, `fondo_m`, `alto_m` y las que el archivo de DOMO trae, como `piso_lado_m`, `piso_area_m2`).
 - **Grupos** (hijos de `modelo`): `estructura`, `cerramiento`, `vidrios`, `puertas`, `ventanas`, `cubierta`, `base`, `detalles`. Cada grupo une sus mallas por material.
-- **Hojas de puerta**: objetos `puerta_hoja_1`, `puerta_hoja_2`… con el origen sobre el eje de la bisagra (vertical). El visor las abre girándolas sobre Y.
-- **Materiales con nombre de rol**: `madera_icosaedro`, `madera_dodecaedro`, `panel`, `incrustacion`, `acero`, `persiana`, `puerta`, `puerta_detalle`, `podio`, `piso`, `vidrio`, `marco_negro`, `chapa_negra`, `revestimiento_madera`. El visor cambia `panel` e `incrustacion` según el color elegido del Áureo y trata `vidrio` como vidrio.
+- **Hojas de puerta**: objetos `puerta_hoja_1`, `puerta_hoja_2`… con el origen sobre el eje de la bisagra (vertical). El visor las abre girándolas sobre Y. En el Patagónico la hoja trae además `bisagra` ("izquierda", mirando desde afuera) y `abre` ("hacia afuera": giro negativo sobre Y). En el Cubic, `bisagra` "derecha" y `abre` "hacia afuera": giro positivo sobre Y.
+- **Materiales con nombre de rol**: `madera_icosaedro`, `madera_dodecaedro`, `panel`, `incrustacion`, `acero`, `persiana`, `puerta`, `puerta_detalle`, `podio`, `piso`, `vidrio`, `marco_negro`, `chapa_negra`, `revestimiento_madera`, `cielorraso_madera` (Patagónico: madera clara por dentro de la cubierta). El visor cambia `panel` e `incrustacion` según el color elegido del Áureo y trata `vidrio` como vidrio.
 - **Peso**: menos de 600 KB por modelo, sin texturas.
 
 Importante: todo GLB que se sirve en una web puede descargarse. Estos son versiones visuales: no llevan planos ni listas de corte.
