@@ -1,6 +1,6 @@
 {
-  "version_catalogo": "0.1.0",
-  "fecha": "2026-10-15",
+  "version_catalogo": "0.2.0",
+  "fecha": "2026-10-16",
   "nota": "Catálogo de prototipo. Ningún dato comercial ni técnico está validado por DOMO BAIRES todavía: cada elemento indica su estado y de dónde sale.",
   "precios": {
     "moneda": null,
@@ -12,12 +12,15 @@
     "confirmado": "Validado por DOMO BAIRES",
     "supuesto": "Supuesto reversible para poder armar el prototipo",
     "pendiente": "Falta el dato o la validación de DOMO BAIRES",
-    "ejemplo": "Regla o dato de ejemplo, solo para probar el sistema"
+    "ejemplo": "Regla o dato de ejemplo, solo para probar el sistema",
+    "aproximado": "Dibujado a partir de fotos, sin medidas: no es la geometría aprobada"
   },
   "fuentes": {
     "prompt_maestro": "Prompt maestro del configurador 3D (2026-10-15)",
     "borrador_anterior": "Configurador anterior (PR #1, 2026-10-07/08). Nombres reutilizados, no validados",
-    "prototipo": "Decisión del prototipo, reversible"
+    "prototipo": "Decisión del prototipo, reversible",
+    "fotos_domo": "Fotos de DOMO, carpeta \"Fotos modelos\\Dormis\" (16/10/2026). Sin medidas",
+    "domo_2026_10_16": "Respuesta de DOMO del 16/10/2026: solo se usan los Dormi Patagónico, Áureo y Cubic"
   },
   "modalidades": [
     {
@@ -52,15 +55,38 @@
     {
       "id": "dormi_aureo",
       "nombre": "Dormi Áureo",
-      "estado": "pendiente",
-      "fuente": "prompt_maestro",
-      "geometria": { "estado": "maqueta", "archivo": null },
+      "estado": "confirmado",
+      "fuente": "domo_2026_10_16",
+      "geometria": {
+        "estado": "aproximado",
+        "forma": "geodesico",
+        "archivo": null,
+        "referencias": [
+          "referencias/Aureo"
+        ],
+        "fuente": "fotos_domo"
+      },
       "superficie_m2": null,
       "altura_m": null,
       "uso": null,
-      "diferencias": [],
-      "posiciones": { "puerta": ["frente"], "ventana": ["izquierda", "derecha", "fondo"] },
-      "modalidades": { "kit": "pendiente", "media_obra": "pendiente", "llave_en_mano": "pendiente" },
+      "diferencias": [
+        "Domo geodésico de paneles triangulares sobre platea, con puerta en caja saliente (según fotos, sin medidas)"
+      ],
+      "posiciones": {
+        "puerta": [
+          "frente"
+        ],
+        "ventana": [
+          "izquierda",
+          "derecha",
+          "fondo"
+        ]
+      },
+      "modalidades": {
+        "kit": "pendiente",
+        "media_obra": "pendiente",
+        "llave_en_mano": "pendiente"
+      },
       "limites": {},
       "variantes": [
         {
@@ -77,25 +103,58 @@
           "nombre": "Variante 2",
           "descripcion": "Conjunto cerrado: ventanas y pórtico vienen definidos.",
           "tipo": "cerrada",
-          "fija": { "ventana": "ventana_fija", "portico": "portico_recto" },
-          "cantidades_fijas": { "ventana": 2 },
+          "fija": {
+            "ventana": "ventana_fija",
+            "portico": "portico_recto"
+          },
+          "cantidades_fijas": {
+            "ventana": 2
+          },
           "estado": "supuesto",
           "fuente": "prototipo"
         }
-      ]
+      ],
+      "imagen": {
+        "archivo": "imagenes/dormi_aureo.jpg",
+        "estado": "pendiente",
+        "nota": "Imagen de referencia; confirmar que se puede usar en la web"
+      }
     },
     {
       "id": "dormi_patagonico",
       "nombre": "Dormi Patagónico",
-      "estado": "pendiente",
-      "fuente": "prompt_maestro",
-      "geometria": { "estado": "maqueta", "archivo": null },
+      "estado": "confirmado",
+      "fuente": "domo_2026_10_16",
+      "geometria": {
+        "estado": "aproximado",
+        "forma": "zome",
+        "archivo": null,
+        "referencias": [
+          "referencias/Patagonico"
+        ],
+        "fuente": "fotos_domo"
+      },
       "superficie_m2": null,
       "altura_m": null,
       "uso": null,
-      "diferencias": [],
-      "posiciones": { "puerta": ["frente"], "ventana": ["izquierda", "derecha", "fondo"] },
-      "modalidades": { "kit": "pendiente", "media_obra": "pendiente", "llave_en_mano": "pendiente" },
+      "diferencias": [
+        "Planta poligonal con muros vidriados y techo zome de facetas (según fotos, sin medidas)"
+      ],
+      "posiciones": {
+        "puerta": [
+          "frente"
+        ],
+        "ventana": [
+          "fondo_izquierda",
+          "fondo",
+          "fondo_derecha"
+        ]
+      },
+      "modalidades": {
+        "kit": "pendiente",
+        "media_obra": "pendiente",
+        "llave_en_mano": "pendiente"
+      },
       "limites": {},
       "variantes": [
         {
@@ -112,26 +171,63 @@
           "nombre": "Variante 2",
           "descripcion": "Conjunto cerrado: ventanas y pórtico vienen definidos.",
           "tipo": "cerrada",
-          "fija": { "ventana": "ventana_apertura", "portico": "portico_recto" },
-          "cantidades_fijas": { "ventana": 3 },
+          "fija": {
+            "ventana": "ventana_apertura",
+            "portico": "portico_recto"
+          },
+          "cantidades_fijas": {
+            "ventana": 3
+          },
           "estado": "supuesto",
           "fuente": "prototipo"
         }
-      ]
+      ],
+      "imagen": {
+        "archivo": "imagenes/dormi_patagonico.jpg",
+        "estado": "pendiente",
+        "nota": "Imagen de referencia; confirmar que se puede usar en la web"
+      }
     },
     {
       "id": "cubic",
       "nombre": "Cubic",
-      "estado": "pendiente",
-      "fuente": "prompt_maestro",
-      "geometria": { "estado": "maqueta", "archivo": null },
+      "estado": "confirmado",
+      "fuente": "domo_2026_10_16",
+      "geometria": {
+        "estado": "aproximado",
+        "forma": "facetado",
+        "archivo": null,
+        "referencias": [
+          "referencias/Cubic"
+        ],
+        "fuente": "fotos_domo"
+      },
       "superficie_m2": null,
       "altura_m": null,
       "uso": null,
-      "diferencias": [],
-      "posiciones": { "puerta": ["frente"], "ventana": ["izquierda", "derecha"] },
-      "modalidades": { "kit": "pendiente", "media_obra": "pendiente", "llave_en_mano": "pendiente" },
-      "limites": { "ventana": { "estado": "ejemplo", "max": 2 } },
+      "diferencias": [
+        "Volumen facetado con perfilería oscura, vidrio arriba y madera adentro (según fotos, sin medidas)"
+      ],
+      "posiciones": {
+        "puerta": [
+          "frente"
+        ],
+        "ventana": [
+          "izquierda",
+          "derecha"
+        ]
+      },
+      "modalidades": {
+        "kit": "pendiente",
+        "media_obra": "pendiente",
+        "llave_en_mano": "pendiente"
+      },
+      "limites": {
+        "ventana": {
+          "estado": "ejemplo",
+          "max": 2
+        }
+      },
       "variantes": [
         {
           "id": "cubic_v1",
@@ -147,12 +243,22 @@
           "nombre": "Variante 2",
           "descripcion": "Conjunto cerrado: ventanas y pórtico vienen definidos.",
           "tipo": "cerrada",
-          "fija": { "ventana": "ventana_fija", "portico": "sin_portico" },
-          "cantidades_fijas": { "ventana": 2 },
+          "fija": {
+            "ventana": "ventana_fija",
+            "portico": "sin_portico"
+          },
+          "cantidades_fijas": {
+            "ventana": 2
+          },
           "estado": "supuesto",
           "fuente": "prototipo"
         }
-      ]
+      ],
+      "imagen": {
+        "archivo": "imagenes/cubic.jpg",
+        "estado": "pendiente",
+        "nota": "Imagen de referencia; confirmar que se puede usar en la web"
+      }
     }
   ],
   "categorias": [
@@ -164,8 +270,26 @@
       "efecto_visual": true,
       "predeterminada": "chapa_grafito",
       "opciones": [
-        { "id": "chapa_grafito", "nombre": "Chapa grafito", "color": "#4a4f57", "estado": "pendiente", "fuente": "borrador_anterior", "precio": { "estado": "pendiente" } },
-        { "id": "madera_cedro", "nombre": "Madera cedro", "color": "#b5834a", "estado": "pendiente", "fuente": "borrador_anterior", "precio": { "estado": "pendiente" } }
+        {
+          "id": "chapa_grafito",
+          "nombre": "Chapa grafito",
+          "color": "#4a4f57",
+          "estado": "pendiente",
+          "fuente": "borrador_anterior",
+          "precio": {
+            "estado": "pendiente"
+          }
+        },
+        {
+          "id": "madera_cedro",
+          "nombre": "Madera cedro",
+          "color": "#b5834a",
+          "estado": "pendiente",
+          "fuente": "borrador_anterior",
+          "precio": {
+            "estado": "pendiente"
+          }
+        }
       ]
     },
     {
@@ -177,15 +301,34 @@
       "posicion": "puerta",
       "predeterminada": "puerta_simple",
       "opciones": [
-        { "id": "puerta_simple", "nombre": "Puerta simple de madera", "estado": "pendiente", "fuente": "borrador_anterior", "precio": { "estado": "pendiente" }, "visual": { "ancho": 0.9, "vidrio": false } },
+        {
+          "id": "puerta_simple",
+          "nombre": "Puerta simple de madera",
+          "estado": "pendiente",
+          "fuente": "borrador_anterior",
+          "precio": {
+            "estado": "pendiente"
+          },
+          "visual": {
+            "ancho": 0.9,
+            "vidrio": false
+          }
+        },
         {
           "id": "puerta_doble_vidriada",
           "nombre": "Puerta doble vidriada",
           "estado": "pendiente",
           "fuente": "borrador_anterior",
-          "precio": { "estado": "pendiente" },
-          "visual": { "ancho": 1.5, "vidrio": true },
-          "requiere": ["portico_recto"],
+          "precio": {
+            "estado": "pendiente"
+          },
+          "visual": {
+            "ancho": 1.5,
+            "vidrio": true
+          },
+          "requiere": [
+            "portico_recto"
+          ],
           "regla_estado": "ejemplo",
           "motivo_requiere": "Regla de ejemplo: la puerta doble se combina con pórtico recto."
         }
@@ -199,10 +342,37 @@
       "efecto_visual": true,
       "posicion": "ventana",
       "predeterminada": "ventana_fija",
-      "cantidad": { "nombre": "Cantidad de ventanas", "min": 0, "max": 3, "predeterminada": 2 },
+      "cantidad": {
+        "nombre": "Cantidad de ventanas",
+        "min": 0,
+        "max": 3,
+        "predeterminada": 2
+      },
       "opciones": [
-        { "id": "ventana_fija", "nombre": "Ventana fija", "estado": "pendiente", "fuente": "prototipo", "precio": { "estado": "pendiente" }, "visual": { "apertura": false } },
-        { "id": "ventana_apertura", "nombre": "Ventana con apertura", "estado": "pendiente", "fuente": "borrador_anterior", "precio": { "estado": "pendiente" }, "visual": { "apertura": true } }
+        {
+          "id": "ventana_fija",
+          "nombre": "Ventana fija",
+          "estado": "pendiente",
+          "fuente": "prototipo",
+          "precio": {
+            "estado": "pendiente"
+          },
+          "visual": {
+            "apertura": false
+          }
+        },
+        {
+          "id": "ventana_apertura",
+          "nombre": "Ventana con apertura",
+          "estado": "pendiente",
+          "fuente": "borrador_anterior",
+          "precio": {
+            "estado": "pendiente"
+          },
+          "visual": {
+            "apertura": true
+          }
+        }
       ]
     },
     {
@@ -213,8 +383,24 @@
       "efecto_visual": true,
       "predeterminada": "sin_portico",
       "opciones": [
-        { "id": "sin_portico", "nombre": "Sin pórtico", "estado": "pendiente", "fuente": "borrador_anterior", "precio": { "estado": "incluido" } },
-        { "id": "portico_recto", "nombre": "Pórtico recto", "estado": "pendiente", "fuente": "borrador_anterior", "precio": { "estado": "pendiente" } }
+        {
+          "id": "sin_portico",
+          "nombre": "Sin pórtico",
+          "estado": "pendiente",
+          "fuente": "borrador_anterior",
+          "precio": {
+            "estado": "incluido"
+          }
+        },
+        {
+          "id": "portico_recto",
+          "nombre": "Pórtico recto",
+          "estado": "pendiente",
+          "fuente": "borrador_anterior",
+          "precio": {
+            "estado": "pendiente"
+          }
+        }
       ]
     },
     {
@@ -225,8 +411,26 @@
       "efecto_visual": false,
       "ayuda": "No cambian el aspecto exterior en esta maqueta: se suman al resumen y a la consulta.",
       "opciones": [
-        { "id": "electricidad_autonoma", "nombre": "Sistema autónomo de electricidad", "descripcion": "Alcance y capacidad a definir con DOMO BAIRES.", "estado": "pendiente", "fuente": "borrador_anterior", "precio": { "estado": "pendiente" } },
-        { "id": "biodigestor", "nombre": "Biodigestor", "descripcion": "Capacidad a definir según el uso y la cantidad de personas.", "estado": "pendiente", "fuente": "borrador_anterior", "precio": { "estado": "pendiente" } }
+        {
+          "id": "electricidad_autonoma",
+          "nombre": "Sistema autónomo de electricidad",
+          "descripcion": "Alcance y capacidad a definir con DOMO BAIRES.",
+          "estado": "pendiente",
+          "fuente": "borrador_anterior",
+          "precio": {
+            "estado": "pendiente"
+          }
+        },
+        {
+          "id": "biodigestor",
+          "nombre": "Biodigestor",
+          "descripcion": "Capacidad a definir según el uso y la cantidad de personas.",
+          "estado": "pendiente",
+          "fuente": "borrador_anterior",
+          "precio": {
+            "estado": "pendiente"
+          }
+        }
       ]
     }
   ]

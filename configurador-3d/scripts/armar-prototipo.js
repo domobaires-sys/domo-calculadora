@@ -16,6 +16,13 @@ const entre = (texto, marca) => {
 
 const index = leer('index.html');
 const catalogo = JSON.parse(leer('catalogo.json')); // valida que el JSON sea correcto
+// Las imágenes de los modelos van incrustadas para que el archivo funcione solo.
+for (const m of catalogo.modelos) {
+  if (m.imagen && m.imagen.archivo && !m.imagen.archivo.startsWith('data:')) {
+    const tipo = m.imagen.archivo.endsWith('.png') ? 'image/png' : 'image/jpeg';
+    m.imagen.archivo = `data:${tipo};base64,${fs.readFileSync(path.join(raiz, m.imagen.archivo)).toString('base64')}`;
+  }
+}
 const json = JSON.stringify(catalogo).replace(/</g, '\\u003c');
 const scripts = index.match(/<script src="https:[^"]+"><\/script>/g).join('\n');
 

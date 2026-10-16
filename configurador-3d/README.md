@@ -2,7 +2,7 @@
 
 Sección para que el cliente elija un modelo (Dormi Áureo, Dormi Patagónico o Cubic), lo personalice, vea los cambios en 3D, elija la modalidad de entrega y pida un presupuesto.
 
-**Estado: prototipo parcial.** El 3D es una maqueta interna rotulada; no representa la forma de ningún modelo. Opciones, modalidades y precios están marcados como pendientes de validación. El análisis, la matriz de decisiones y las preguntas abiertas están en [`docs/analisis-y-decisiones.md`](docs/analisis-y-decisiones.md).
+**Estado: prototipo parcial.** El 3D es una aproximación de cada modelo dibujada a partir de fotos de DOMO BAIRES, sin medidas (las medidas usadas son supuestos visuales). Opciones, modalidades y precios están marcados como pendientes de validación. El análisis, la matriz de decisiones y las preguntas abiertas están en [`docs/analisis-y-decisiones.md`](docs/analisis-y-decisiones.md).
 
 ## Archivos
 
@@ -10,7 +10,8 @@ Sección para que el cliente elija un modelo (Dormi Áureo, Dormi Patagónico o 
 |---|---|
 | `catalogo.json` | Datos: modelos, variantes, posiciones, opciones, reglas, modalidades, precios, estado y fuente de cada dato, versión |
 | `reglas.js` | Reglas de compatibilidad, resumen y validación (funciones puras; sirven en el navegador y en un servidor) |
-| `visor.js` | Visor 3D (three.js r128, licencia MIT) |
+| `visor.js` | Visor 3D (three.js r128, licencia MIT). Una función por forma: `geodesico` (Áureo), `zome` (Patagónico), `facetado` (Cubic), elegida por `geometria.forma` del catálogo |
+| `imagenes/` | Imágenes de las tarjetas de modelo (referencias de DOMO; confirmar uso en la web) |
 | `app.js` | Interfaz: etapas, controles, resumen y formulario |
 | `estilos.css` | Diseño visual (provisorio hasta tener la identidad aprobada) |
 | `index.html` | Página para servir los archivos tal cual |

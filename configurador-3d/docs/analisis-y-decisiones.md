@@ -1,6 +1,6 @@
 # Configurador 3D de DOMO BAIRES: análisis, decisiones y pendientes
 
-Fecha: 15/10/2026 · Catálogo del prototipo: versión 0.1.0 · Estado: **prototipo parcial** (faltan los modelos 3D fieles y los datos comerciales).
+Fecha: 15/10/2026, actualizado el 16/10/2026 · Catálogo del prototipo: versión 0.2.0 · Estado: **prototipo parcial** (el 3D es una aproximación hecha con fotos; faltan medidas, archivos 3D y datos comerciales).
 
 ## 1. Qué entendí del pedido
 
@@ -17,10 +17,11 @@ Una sección para la web de DOMO BAIRES donde el cliente elige uno de tres model
 | Calculadora anterior | `CALCULADORA_PROFESIONAL_COMPLETA_v3_4.html` | Antecedente del 3D | No menciona los tres modelos nuevos |
 | Captura del 07/10 | Archivos del proyecto | Muestra el configurador anterior (cúpula, línea Essential) | Es del borrador, no de los modelos nuevos |
 | Demo publicada anterior | Artifact del 08/10 | Referencia de recorrido | Mismos datos de ejemplo |
+| Fotos de los Dormis (16/10) | Carpeta de DOMO "Fotos modelos\Dormis", copiadas en `referencias/` de los archivos del proyecto | **Áureo**: 2 capturas de un modelo en Blender (domo geodésico de paneles triangulares, puerta en caja saliente, platea hexagonal). **Patagónico**: 2 exteriores y 4 interiores (planta octogonal vidriada, un lado de madera, techo zome negro). **Cubic**: 4 fotos (volumen facetado, perfilería negra, vidrio arriba, madera adentro) | Sin medidas. Las de Patagónico parecen imágenes generadas, no fotos de obra. Falta confirmar el origen de las de Cubic y si se pueden usar en la web |
 
 ### Falta (bloquea un producto fiel o comercial)
 
-1. **Geometría de cada modelo**: planos, modelo 3D (cualquier formato: SketchUp, Rhino, Blender, DWG, etc.) o al menos fotos y medidas de Dormi Áureo, Dormi Patagónico y Cubic.
+1. **Geometría de cada modelo**: ya hay fotos de los tres (16/10). Faltan las **medidas** (diámetro o lados, altura, superficie) y, si existen, los archivos 3D. Del Áureo hay un modelo en Blender: el archivo `.blend` permitiría usar la forma real.
 2. **Superficie, altura y uso previsto** verificados de cada modelo, y en qué se diferencian.
 3. **Variantes reales** de cada modelo (cuántas, nombres, si son conjuntos cerrados o combinables).
 4. **Opciones reales** de ventanas, pórticos, puertas y terminaciones, y dónde puede ir cada abertura.
@@ -32,7 +33,7 @@ Una sección para la web de DOMO BAIRES donde el cliente elige uno de tres model
 
 ### Contradicción a resolver
 
-El 08/10 se cargó una línea Dormi con los modelos **CUBIC, ZOMO, KING y ATMO**. El prompt maestro dice que la colección inicial es **Dormi Áureo, Dormi Patagónico y Cubic**. Para este encargo uso los tres del prompt maestro; ZOMO, KING y ATMO quedan fuera hasta que DOMO BAIRES diga si son otros modelos, nombres anteriores o se descartan. Ningún dato del borrador anterior se toma como validado.
+**Resuelta el 16/10:** DOMO confirmó que solo se usan Dormi Patagónico, Dormi Áureo y Cubic. ZOMO, KING y ATMO (cargados el 08/10 en el borrador anterior) quedan fuera. Ningún otro dato del borrador anterior se toma como validado.
 
 ## 3. Matriz de decisiones
 
@@ -40,14 +41,14 @@ Estados: **C** confirmado · **S** supuesto reversible · **P** pendiente de val
 
 | Área | Decisión | Alternativas | Recomendación y motivo | Fuente | Efecto en costo, tiempo, mantenimiento | Estado | Valida |
 |---|---|---|---|---|---|---|---|
-| Producto | Colección inicial | Los 3 del prompt / los 4 Dormi del 08/10 | Dormi Áureo, Dormi Patagónico y Cubic, con esos nombres exactos | Prompt maestro §1 | Ninguno | C (nombres) · P (relación con ZOMO/KING/ATMO) | DB |
+| Producto | Colección inicial | Los 3 del prompt / los 4 Dormi del 08/10 | Dormi Áureo, Dormi Patagónico y Cubic, con esos nombres exactos | Prompt maestro §1, DOMO 16/10 | Ninguno | C | — |
 | Producto | Variantes por modelo | Libres / 2 por modelo | 2 por modelo: una combinable y una cerrada, para probar ambos comportamientos | Prompt §4 | Cambiar es editar el catálogo | S | DB |
 | Producto | Alternativas por categoría | Muchas / hasta 2 | Hasta 2 (ventana, puerta, pórtico, terminación), nombres tomados del borrador | Prompt §4, PR #1 | Agregar más es editar el catálogo | P | DB |
 | Producto | Adicionales | Ninguno / los del borrador | Sistema autónomo de electricidad y biodigestor, como casillas sin efecto visual | Tema del proyecto, PR #1 | Bajo | P | DB |
-| Geometría | Qué se ve en 3D sin archivos | Inventar forma / cúpula genérica / maqueta neutra rotulada | Maqueta neutra igual para los tres, con cartel "maqueta · forma pendiente" | Prompt §7 | Se reemplaza por el modelo real sin tocar la interfaz | S | Dev |
+| Geometría | Qué se ve en 3D sin archivos | Maqueta neutra / aproximación desde fotos | Desde el 16/10: aproximación de cada modelo dibujada con las fotos (geodésico, zome y facetado), rotulada "aproximación · sin medidas"; medidas supuestas | Prompt §7, fotos de DOMO | Se reemplaza por el GLB real sin tocar la interfaz | S | DB (forma) |
 | Geometría | Formato de entrega web | GLB / OBJ / FBX | GLB (glTF binario) comprimido, un archivo por modelo con piezas separadas y nombres estables | Estándar abierto, lo leen three.js y la mayoría de editores | Requiere preparar cada modelo una vez | S | Dev |
 | Geometría | Archivos maestros | Solo GLB / maestro + GLB | Conservar el archivo de edición original (el que use DB) y exportar desde él | Prompt §7 | Evita rehacer modelos | P (falta saber qué programa usa DB) | DB |
-| Geometría | Posiciones de aberturas | Libres / fijas por modelo | Fijas y declaradas por modelo (frente, izquierda, derecha, fondo en la maqueta) | Prompt §9 | Cada modelo real necesita su lista de posiciones | S | DB |
+| Geometría | Posiciones de aberturas | Libres / fijas por modelo | Fijas y declaradas por modelo. Áureo: ventanas vidriando un paño triangular. Patagónico: ventanas en los lados de madera (los demás ya son vidriados). Cubic: ventanas en los laterales | Prompt §9, fotos | Cada modelo real necesita su lista de posiciones | S | DB |
 | Interacción | Recorrido | Una página larga / 4 etapas | 4 etapas: modelo, diseño, modalidad, revisión y consulta | Prompt §5 | — | C | — |
 | Interacción | Controles | — | Tarjetas de opción única, casillas para adicionales, muestras de color, contador con límites | Prompt §6 | — | C | — |
 | Interacción | Cambios que afectan otras elecciones | Aplicar en silencio / avisar | Avisar antes con la lista de cambios y botón "Aplicar"; opciones bloqueadas explican por qué | Prompt §5 y §9 | — | C | — |
@@ -73,8 +74,8 @@ Estados: **C** confirmado · **S** supuesto reversible · **P** pendiente de val
 
 Las necesito para pasar de maqueta a producto real. Mientras tanto sigo con lo que no depende de ellas.
 
-1. **Modelos**: ¿podés mandar, para Dormi Áureo, Dormi Patagónico y Cubic, el archivo 3D o los planos (y si no hay, fotos y medidas)? ¿Qué programa usan para dibujarlos?
-2. **ZOMO, KING y ATMO**: ¿son otros modelos, nombres viejos de estos tres, o se descartan?
+1. **Medidas**: diámetro o largo de los lados, altura y superficie de Dormi Áureo, Dormi Patagónico y Cubic.
+2. **Archivos 3D**: el `.blend` del Áureo (y de los otros, si existen). ¿Las fotos del Cubic y las imágenes del Patagónico son propias y se pueden mostrar en la web?
 3. **Variantes y aberturas**: para cada modelo, ¿qué variantes existen y en qué lugares puede ir cada ventana, puerta y pórtico?
 4. **Modalidades**: ¿qué modelos se venden en KIT, Media Obra y Llave en Mano, y qué incluye cada una?
 5. **Precios**: ¿se muestran precios en la web o solo se piden presupuestos?
@@ -87,7 +88,7 @@ Hecho:
 - Recorrido completo en 4 etapas, en computadora y celular, sin cuenta.
 - Catálogo separado (`catalogo.json`) con estado y fuente de cada dato, versión y precios pendientes.
 - Motor de reglas (`reglas.js`): compatibilidad por modelo y variante, variantes cerradas, "requiere" y "no combina con", límites de cantidad, aviso antes de cambiar otras elecciones, revalidación antes de la solicitud, recuperación de configuraciones viejas.
-- Visor 3D con maqueta rotulada: puerta, ventanas (fija o con apertura, con bisagra en el borde), pórtico y terminación cambian en el acto; la cámara gira hacia la abertura modificada (salvo si el dispositivo pide menos movimiento); día y noche; vista superior; centrar; pantalla completa; salida clara si el 3D no carga.
+- Visor 3D (desde el 16/10, con una aproximación de cada modelo hecha con las fotos): puerta, ventanas (fija o con apertura, con bisagra en el borde), pórtico y terminación cambian en el acto; la cámara gira hacia la abertura modificada (salvo si el dispositivo pide menos movimiento); día y noche; vista superior; centrar; pantalla completa; salida clara si el 3D no carga.
 - Resumen exacto, imagen de la maqueta, formulario con campos obligatorios explicados y solicitud preparada (no enviada: falta el canal).
 - 13 pruebas automáticas de las reglas.
 

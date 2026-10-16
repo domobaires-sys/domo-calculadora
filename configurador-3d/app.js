@@ -209,7 +209,9 @@
             irAEtapa(1);
           },
         },
-        h('div', { class: 'imagen-pendiente' }, `Imagen de ${m.nombre} pendiente: falta la referencia aprobada`),
+        m.imagen && m.imagen.archivo
+          ? h('img', { class: 'imagen-modelo', src: m.imagen.archivo, alt: `Imagen de referencia de ${m.nombre}`, loading: 'lazy' })
+          : h('div', { class: 'imagen-pendiente' }, `Imagen de ${m.nombre} pendiente: falta la referencia aprobada`),
         h('h3', {}, m.nombre),
         h('dl', { class: 'datos' },
           h('dt', {}, 'Superficie'), h('dd', {}, m.superficie_m2 ? `${m.superficie_m2} m²` : 'pendiente'),
@@ -235,7 +237,8 @@
 
   function datosVisor() {
     const term = R.categoriaDe(cat, 'terminacion').opciones.find((o) => o.id === estado.sel.terminacion);
-    return { color: term && term.color, aberturas: R.aberturas(cat, estado), portico: estado.sel.portico === 'portico_recto' };
+    const m = R.modeloDe(cat, estado.modelo);
+    return { forma: m.geometria && m.geometria.forma, color: term && term.color, aberturas: R.aberturas(cat, estado), portico: estado.sel.portico === 'portico_recto' };
   }
 
   function renderVisorUI() {
@@ -257,9 +260,10 @@
     }
     visor.construir(datosVisor());
     const ab = R.aberturas(cat, estado);
-    visor.describir(`Maqueta interna de ${m.nombre}: ${ab.filter((a) => a.tipo === 'puerta').length} puerta, ${ab.filter((a) => a.tipo === 'ventana').length} ventanas${estado.sel.portico === 'portico_recto' ? ', con pórtico' : ''}. No representa la forma real del modelo.`);
+    const aprox = m.geometria && m.geometria.estado === 'aproximado';
+    visor.describir(`${aprox ? 'Aproximación' : 'Maqueta interna'} de ${m.nombre}: ${ab.filter((a) => a.tipo === 'puerta').length} puerta, ${ab.filter((a) => a.tipo === 'ventana').length} ventanas${estado.sel.portico === 'portico_recto' ? ', con pórtico' : ''}. ${aprox ? 'Dibujada a partir de fotos, sin medidas.' : 'No representa la forma real del modelo.'}`);
     cont.append(h('div', { class: 'visor-rotulo' },
-      h('span', { class: 'chip maqueta' }, `Maqueta interna: no es la forma real de ${m.nombre}`),
+      h('span', { class: 'chip maqueta' }, aprox ? `Aproximación de ${m.nombre} a partir de fotos: sin medidas` : `Maqueta interna: no es la forma real de ${m.nombre}`),
       h('span', { class: 'chip vista' }, vista === 'planta' ? 'Vista superior del 3D · sin cotas' : 'Vista exterior')));
     const boton = (texto, activo, fn, extra) => h('button', Object.assign({ type: 'button', 'aria-pressed': activo === null ? null : String(!!activo), onclick: fn }, extra || {}), texto);
     cont.append(h('div', { class: 'visor-herramientas', role: 'toolbar', 'aria-label': 'Controles de visualización (no cambian el presupuesto)' },
@@ -333,7 +337,7 @@
   function panelDiseno() {
     const m = R.modeloDe(cat, estado.modelo);
     const v = R.varianteDe(m, estado.variante);
-    const bloques = [encabezado(`Personalizá ${m.nombre}`, 'Cada cambio se ve en la maqueta. Las opciones marcadas "sin validar" todavía no están confirmadas por DOMO BAIRES.')];
+    const bloques = [encabezado(`Personalizá ${m.nombre}`, 'Cada cambio se ve en el 3D, que es una aproximación hecha con fotos y sin medidas. Las opciones marcadas "sin validar" todavía no están confirmadas por DOMO BAIRES.')];
 
     bloques.push(grupoRadio('Variante', m.variantes.map((x) => ({ id: x.id, nombre: x.nombre, detalle: x.descripcion, estado: x.estado })), estado.variante,
       (id) => intentar({ tipo: 'variante', variante: id }),
@@ -401,11 +405,11 @@
     const bloques = [encabezado('Revisá y pedí tu presupuesto', 'Esto es exactamente lo que se envía con tu consulta.')];
     bloques.push(h('section', { class: 'bloque', 'aria-labelledby': 'g-resumen' },
       h('h2', { id: 'g-resumen' }, 'Tu configuración'),
-      img ? h('img', { class: 'captura', src: img, alt: 'Imagen de la maqueta con la selección actual' }) : null,
+      img ? h('img', { class: 'captura', src: img, alt: 'Imagen del 3D con la selección actual' }) : null,
       h('table', { class: 'resumen' },
         h('tbody', {}, res.lineas.map((l) => h('tr', {}, h('th', { scope: 'row' }, l.etiqueta), h('td', {}, l.valor, ' ', pill(l.estado)), h('td', { class: 'precio' }, l.precio || '')))),
         h('tfoot', {}, h('tr', {}, h('td', { colspan: '2' }, 'Precio'), h('td', { class: 'precio' }, res.total.texto)))),
-      h('p', { class: 'ayuda' }, 'Sin precios validados todavía: el presupuesto lo prepara DOMO BAIRES. Transporte, montaje, fundaciones y trabajos según la ubicación se cotizan aparte. La maqueta no reemplaza el cálculo estructural.'),
+      h('p', { class: 'ayuda' }, 'Sin precios validados todavía: el presupuesto lo prepara DOMO BAIRES. Transporte, montaje, fundaciones y trabajos según la ubicación se cotizan aparte. El 3D es una aproximación y no reemplaza el cálculo estructural.'),
       h('div', { class: 'acciones' },
         h('button', { class: 'btn', onclick: guardarEnDispositivo }, 'Guardar en este dispositivo'),
         h('button', { class: 'btn', onclick: (e) => copiarTexto(R.codificar(estado), e.currentTarget) }, 'Copiar código de configuración')),

@@ -91,6 +91,7 @@ h2 { font-size: 15px; font-weight: 700; letter-spacing: 0.06em; text-transform: 
   background: repeating-linear-gradient(135deg, var(--fondo) 0 10px, var(--acento-suave) 10px 20px);
   border: 1px dashed var(--linea);
 }
+.imagen-modelo { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; background: var(--fondo); }
 .datos { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; font-size: 13px; }
 .datos dt { color: var(--tinta-suave); }
 .datos dd { margin: 0; font-family: var(--f-dato); font-size: 12px; }
