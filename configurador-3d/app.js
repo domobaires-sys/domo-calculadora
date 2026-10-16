@@ -57,6 +57,28 @@
     for (const c of hijos.flat(3)) if (c !== null && c !== undefined && c !== false) el.append(c.nodeType ? c : String(c));
     return el;
   }
+  const SVG = 'http://www.w3.org/2000/svg';
+  /** Icono de la familia única de index.html (trazo de 1,5 px). */
+  function icono(nombre) {
+    const s = document.createElementNS(SVG, 'svg');
+    s.setAttribute('class', 'icono');
+    s.setAttribute('aria-hidden', 'true');
+    s.setAttribute('focusable', 'false');
+    const u = document.createElementNS(SVG, 'use');
+    u.setAttribute('href', '#i-' + nombre);
+    s.append(u);
+    return s;
+  }
+  /** Marca de selección: la misma en tarjetas, tramas y modalidades. */
+  const marca = () => h('span', { class: 'marca-seleccion', 'aria-hidden': 'true' }, icono('tilde'));
+  /** Foto de referencia de DOMO: mismo recorte cuadrado y mismo marco en todos lados. */
+  function fotoReferencia(m, conLeyenda) {
+    return h('figure', { class: 'foto-ref' },
+      h('img', { src: m.imagen.archivo, alt: m.imagen.alt || `Foto de referencia de ${m.nombre}`, width: '400', height: '400', loading: 'lazy' }),
+      conLeyenda === false ? null : h('figcaption', {}, 'Foto de referencia'));
+  }
+  /** Reemplaza el contenido de un elemento; ignora los huecos (null, false). */
+  function poner(el, ...hijos) { el.replaceChildren(...hijos.flat().filter((x) => x !== null && x !== undefined && x !== false)); }
   const local = {
     leer() { try { return JSON.parse(window.localStorage.getItem(CLAVE_LOCAL) || 'null'); } catch (e) { return null; } },
     guardar(v) { try { window.localStorage.setItem(CLAVE_LOCAL, JSON.stringify(v)); } catch (e) { /* sin almacenamiento: no pasa nada */ } },
@@ -193,7 +215,7 @@
     const opcionTrama = (m.opciones || []).find((o) => o.tipo === 'modelo_3d');
     const trama = opcionTrama ? R.valorDe(opcionTrama, estado.opciones[opcionTrama.id]) : null;
 
-    $('visor-rotulo').replaceChildren(
+    poner($('visor-rotulo'), 
       h('span', { class: 'rotulo-nombre' }, m.nombre, trama ? h('span', { class: 'rotulo-variante' }, ` · ${trama.nombre}`) : null),
       principales ? h('span', { class: 'rotulo-medidas', title: 'Ancho × fondo × alto, según el modelo 3D de DOMO' },
         h('span', { class: 'solo-lectores' }, 'Ancho por fondo por alto: '), principales) : null);
@@ -211,7 +233,7 @@
       const [titulo, texto] = textos[fallo3d || estado3d] || textos.error;
       capa.className = 'visor-capa visor-capa-aviso';
       capa.replaceChildren(h('div', { class: 'visor-aviso', role: 'status' },
-        m.imagen && m.imagen.archivo ? h('img', { src: m.imagen.archivo, alt: m.imagen.alt || `Foto de referencia de ${m.nombre}` }) : null,
+        m.imagen && m.imagen.archivo ? fotoReferencia(m) : null,
         h('div', { class: 'visor-aviso-texto' },
           h('p', { class: 'visor-aviso-titulo' }, titulo),
           h('p', {}, texto),
@@ -229,14 +251,15 @@
     const abiertas = listo && visor.puertasAbiertas;
     const plural = puertas > 1 ? 'puertas' : 'puerta';
     const enPantalla = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    $('visor-acciones').replaceChildren(
+    poner($('visor-acciones'), 
       puertas ? h('button', {
         type: 'button', class: 'boton-visor', 'aria-pressed': String(!!abiertas), id: 'boton-puerta',
         onclick: () => { visor.alternarPuertas(); renderVisorUI(); },
-      }, abiertas ? `Cerrar ${plural}` : `Abrir ${plural}`) : null,
-      listo && hayPantallaCompleta() ? h('button', { type: 'button', class: 'boton-visor', id: 'boton-pantalla', onclick: pantallaCompleta, 'aria-label': enPantalla ? 'Salir de pantalla completa' : 'Pantalla completa' },
-        h('span', { class: 'texto-largo' }, enPantalla ? 'Salir de pantalla completa' : 'Pantalla completa'),
-        h('span', { class: 'texto-corto', 'aria-hidden': 'true' }, enPantalla ? 'Salir' : 'Ampliar')) : null);
+      }, icono('puerta'), h('span', { class: 'boton-texto' }, abiertas ? `Cerrar ${plural}` : `Abrir ${plural}`)) : null,
+      listo && hayPantallaCompleta() ? h('button', {
+        type: 'button', class: 'boton-visor', id: 'boton-pantalla', onclick: pantallaCompleta,
+        'aria-label': enPantalla ? 'Salir de pantalla completa' : 'Pantalla completa', title: enPantalla ? 'Salir de pantalla completa' : 'Pantalla completa',
+      }, icono(enPantalla ? 'reducir' : 'ampliar'), h('span', { class: 'texto-largo', 'aria-hidden': 'true' }, enPantalla ? 'Salir' : 'Pantalla completa')) : null);
 
     $('visor-vistas').replaceChildren(...(listo ? [
       ...VISTAS.map((v) => h('button', {
@@ -304,9 +327,15 @@
     renderAvisos();
   }
 
+  /** Botón con icono y texto (el texto se puede cambiar sin perder el icono). */
+  function botonConIcono(attrs, nombreIcono, texto) {
+    return h('button', attrs, icono(nombreIcono), h('span', { class: 'boton-texto' }, texto));
+  }
+
   async function copiar(texto, boton, seleccionable) {
-    const original = boton.dataset.texto || boton.textContent;
-    boton.dataset.texto = original;
+    const etiqueta = boton.querySelector('.boton-texto') || boton;
+    const uso = boton.querySelector('use');
+    if (!boton.dataset.texto) { boton.dataset.texto = etiqueta.textContent; boton.dataset.icono = uso ? uso.getAttribute('href') : ''; }
     let ok = false;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(texto); ok = true; }
@@ -320,10 +349,15 @@
       s.addRange(rango);
       try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
     }
-    boton.textContent = ok ? 'Copiado' : 'Seleccionado: copialo';
+    etiqueta.textContent = ok ? 'Copiado' : 'Seleccionado: copialo';
+    if (uso && ok) uso.setAttribute('href', '#i-tilde');
     boton.classList.toggle('copiado', ok);
     clearTimeout(boton._reloj);
-    boton._reloj = setTimeout(() => { boton.textContent = original; boton.classList.remove('copiado'); }, 2400);
+    boton._reloj = setTimeout(() => {
+      etiqueta.textContent = boton.dataset.texto;
+      if (uso && boton.dataset.icono) uso.setAttribute('href', boton.dataset.icono);
+      boton.classList.remove('copiado');
+    }, 2400);
   }
 
   // ---------- render ----------
@@ -353,14 +387,16 @@
   function renderAvisos() {
     $('avisos').replaceChildren(...avisos.map((a) => h('div', { class: `aviso aviso-${a.tipo || 'info'}`, role: a.tipo === 'error' ? 'alert' : 'status' },
       h('div', { class: 'aviso-texto' }, a.texto, a.lista && a.lista.length ? h('ul', {}, a.lista.map((x) => h('li', {}, x))) : null),
-      h('button', { type: 'button', class: 'aviso-cerrar', 'aria-label': 'Cerrar aviso', onclick: () => { avisos = avisos.filter((x) => x !== a); renderAvisos(); } }, 'Cerrar'))));
+      h('button', { type: 'button', class: 'boton-icono aviso-cerrar', 'aria-label': 'Cerrar aviso', title: 'Cerrar aviso', onclick: () => { avisos = avisos.filter((x) => x !== a); renderAvisos(); } }, icono('cerrar')))));
   }
 
-  function cabeza(antetitulo, titulo, bajada) {
+  function cabeza(antetitulo, titulo, bajada, foto) {
     return h('header', { class: 'etapa-cabeza' },
-      h('p', { class: 'antetitulo' }, antetitulo),
-      h('h1', { tabindex: '-1' }, titulo),
-      bajada ? h('p', { class: 'bajada' }, bajada) : null);
+      h('div', { class: 'etapa-cabeza-texto' },
+        h('p', { class: 'antetitulo' }, antetitulo),
+        h('h1', { tabindex: '-1' }, titulo),
+        bajada ? h('p', { class: 'bajada' }, bajada) : null),
+      foto || null);
   }
 
   // Etapa 1: modelo
@@ -377,18 +413,18 @@
           type: 'button', class: 'tarjeta-modelo', 'aria-pressed': String(elegido), 'data-modelo': m.id,
           onclick: () => { if (!elegido) cambiar({ tipo: 'modelo', modelo: m.id }); },
         },
-        h('span', { class: 'tm-imagen' + (mini ? '' : ' tm-foto') },
+        h('span', { class: 'miniatura' + (mini ? '' : ' es-foto') },
           h('img', {
             src: mini || m.imagen.archivo, alt: '', loading: 'lazy', width: '640', height: '480',
-            onerror: (ev) => { const img = ev.currentTarget; if (img.dataset.foto) return; img.dataset.foto = '1'; img.src = m.imagen.archivo; img.parentElement.classList.add('tm-foto'); },
+            onerror: (ev) => { const img = ev.currentTarget; if (img.dataset.foto) return; img.dataset.foto = '1'; img.src = m.imagen.archivo; img.parentElement.classList.add('es-foto'); },
           })),
         h('span', { class: 'tm-texto' },
           h('span', { class: 'tm-nombre' }, m.nombre),
           h('span', { class: 'tm-desc' }, m.descripcion),
           h('span', { class: 'tm-medidas' }, principales
-            ? [h('span', { class: 'tm-principal' }, principales), med.piso_area_m2 ? h('span', { class: 'tm-sup' }, ` · ${R.textoMedida('piso_area_m2', med.piso_area_m2)}`) : null]
+            ? [h('span', { class: 'tm-principal' }, principales), med.piso_area_m2 ? h('span', { class: 'tm-sup' }, R.textoMedida('piso_area_m2', med.piso_area_m2)) : null]
             : 'Modelo 3D en preparación')),
-        h('span', { class: 'marca-seleccion', 'aria-hidden': 'true' }));
+        marca());
       })),
       h('p', { class: 'nota' }, 'Medidas exteriores totales (ancho × fondo × alto) y superficie de piso, según el modelo 3D de DOMO.'),
     ];
@@ -399,7 +435,8 @@
     const m = modelo();
     const ops = m.opciones || [];
     const partes = [cabeza(`Paso 2 de 4 · ${ETAPAS[1].nombre}`, m.nombre,
-      ops.length ? 'Elegí la trama y el color de los paneles. Cada cambio se ve en el 3D.' : null)];
+      ops.length ? 'Elegí la trama y el color de los paneles. Cada cambio se ve en el 3D.' : m.descripcion,
+      fotoReferencia(m))];
     if (!ops.length) {
       partes.push(h('div', { class: 'diseno-unico' },
         h('p', { class: 'diseno-unico-titulo' }, 'Diseño único'),
@@ -417,9 +454,9 @@
               type: 'button', class: 'opcion opcion-trama', 'aria-pressed': String(valor === v.id), 'data-valor': v.id,
               onclick: () => { if (valor !== v.id) cambiar({ tipo: 'opcion', opcion: o.id, valor: v.id }); },
             },
-            mini ? h('span', { class: 'ot-imagen' }, h('img', { src: mini, alt: '', width: '640', height: '480', onerror: (ev) => { ev.currentTarget.parentElement.remove(); } })) : null,
+            mini ? h('span', { class: 'miniatura' }, h('img', { src: mini, alt: '', width: '640', height: '480', onerror: (ev) => { ev.currentTarget.parentElement.remove(); } })) : null,
             h('span', { class: 'ot-texto' }, h('span', { class: 'opcion-nombre' }, v.nombre), v.detalle ? h('span', { class: 'opcion-detalle' }, v.detalle) : null),
-            h('span', { class: 'marca-seleccion', 'aria-hidden': 'true' }));
+            marca());
           }))));
       } else if (o.tipo === 'color_material') {
         const a = R.archivo3d(cat, estado);
@@ -439,9 +476,6 @@
       }
     }
     partes.push(ficha(m));
-    partes.push(h('figure', { class: 'referencia' },
-      h('img', { src: m.imagen.archivo, alt: m.imagen.alt || `Foto de referencia de ${m.nombre}`, loading: 'lazy' }),
-      h('figcaption', {}, 'Foto de referencia')));
     return partes;
   }
 
@@ -457,8 +491,8 @@
       h('h2', { class: 'grupo-titulo' }, 'Medidas'),
       principales
         ? h('dl', { class: 'tabla tabla-cifras' },
-          h('div', { class: 'fila' }, h('dt', {}, 'Ancho × fondo × alto'), h('dd', {}, principales)),
-          extra.map((x) => h('div', { class: 'fila' }, h('dt', {}, x.etiqueta), h('dd', {}, x.texto))))
+          h('div', { class: 'fila' }, h('dt', {}, 'Ancho × fondo × alto'), h('dd', { class: 'cifra' }, principales)),
+          extra.map((x) => h('div', { class: 'fila' }, h('dt', {}, x.etiqueta), h('dd', { class: 'cifra' }, x.texto))))
         : h('p', { class: 'ayuda' }, 'Modelo 3D en preparación: las medidas aparecen cuando esté listo.'),
       h('p', { class: 'nota' }, 'Según el modelo 3D de DOMO.'));
   }
@@ -478,7 +512,7 @@
           h('span', { class: 'opcion-nombre' }, x.nombre),
           h('span', { class: 'opcion-detalle' }, x.descripcion),
           h('span', { class: 'precio' }, R.textoPrecio(m.precios && m.precios[x.id]))),
-        h('span', { class: 'marca-seleccion', 'aria-hidden': 'true' }));
+        marca());
       })),
       errores.modalidad ? h('p', { class: 'error-campo', id: 'error-modalidad', tabindex: '-1', role: 'alert' }, errores.modalidad) : null,
       h('p', { class: 'nota' }, 'Los precios los confirma DOMO BAIRES en el presupuesto.'),
@@ -529,7 +563,7 @@
       h('section', { class: 'resumen', 'aria-labelledby': 'resumen-titulo' },
         h('h2', { class: 'grupo-titulo', id: 'resumen-titulo' }, 'Tu configuración'),
         h('dl', { class: 'tabla' }, res.lineas.map((l) => h('div', { class: 'fila fila-' + l.clave },
-          h('dt', {}, l.etiqueta), h('dd', {}, l.valor))))),
+          h('dt', {}, l.etiqueta), ddResumen(l))))),
       formulario,
     ];
     if (solicitud) {
@@ -537,7 +571,7 @@
       partes.push(h('section', { class: 'solicitud', 'aria-labelledby': 'solicitud-titulo' },
         h('h2', { class: 'grupo-titulo', id: 'solicitud-titulo', tabindex: '-1' }, 'Solicitud lista para copiar'),
         pre,
-        h('button', { type: 'button', class: 'boton boton-primario boton-ancho', id: 'boton-copiar', onclick: (ev) => copiar(solicitud, ev.currentTarget, pre) }, 'Copiar'),
+        botonConIcono({ type: 'button', class: 'boton boton-primario boton-ancho', id: 'boton-copiar', onclick: (ev) => copiar(solicitud, ev.currentTarget, pre) }, 'copiar', 'Copiar'),
         h('p', { class: 'nota' }, 'Pegala en un mensaje o un correo a DOMO BAIRES, por el medio que uses habitualmente.')));
     }
     const enlace = /^https?:$/.test(location.protocol) ? location.href.split('#')[0] + '#' + codigo : null;
@@ -546,9 +580,18 @@
       h('h2', { class: 'grupo-titulo', id: 'compartir-titulo' }, 'Compartir esta configuración'),
       h('p', { class: 'ayuda' }, 'El enlace guarda el modelo y las opciones elegidas, nunca tus datos.'),
       codigoEl,
-      h('button', { type: 'button', class: 'boton boton-ancho', id: 'boton-enlace', onclick: (ev) => copiar(enlace || codigo, ev.currentTarget, codigoEl) }, 'Copiar enlace de esta configuración'),
+      botonConIcono({ type: 'button', class: 'boton boton-ancho', id: 'boton-enlace', onclick: (ev) => copiar(enlace || codigo, ev.currentTarget, codigoEl) }, 'enlace', 'Copiar enlace de esta configuración'),
       enlace ? null : h('p', { class: 'nota' }, 'Si copiás solo el código, agregalo al final de la dirección del configurador, después de "#".')));
     return partes;
+  }
+
+  /** Valor de una línea del resumen: las cifras en la tipografía técnica. */
+  function ddResumen(l) {
+    if (l.clave === 'medidas') {
+      const principales = R.medidasPrincipales(R.medidasDe(cat, estado));
+      if (principales) return h('dd', {}, h('span', { class: 'cifra' }, principales), h('span', { class: 'dd-nota' }, 'según el modelo 3D de DOMO'));
+    }
+    return h('dd', { class: l.clave === 'superficie' ? 'cifra' : null }, l.valor);
   }
 
   function preparar() {
@@ -576,20 +619,21 @@
     const mod = R.modalidadDe(cat, estado.modalidad);
     const precio = R.textoPrecio(R.precioDe(cat, estado));
     const siguiente = etapa < ETAPAS.length - 1;
-    $('pie').replaceChildren(
+    poner($('pie'), 
       h('p', { class: 'pie-modelo' }, m.nombre),
       h('p', { class: 'pie-detalle' }, `${diseno} · ${mod ? mod.nombre : 'Entrega sin elegir'}`),
       h('p', { class: 'pie-precio' }, precio),
       h('div', { class: 'pie-acciones' },
-        etapa > 0 ? h('button', { type: 'button', class: 'boton', id: 'boton-atras', onclick: () => irA(etapa - 1, { forzar: true }) }, 'Atrás') : null,
+        etapa > 0 ? h('button', { type: 'button', class: 'boton', id: 'boton-atras', 'aria-label': 'Atrás', title: 'Atrás', onclick: () => irA(etapa - 1, { forzar: true }) },
+          icono('flecha-izq'), h('span', { class: 'texto-largo', 'aria-hidden': 'true' }, 'Atrás')) : null,
         siguiente
           ? h('button', { type: 'button', class: 'boton boton-primario', id: 'boton-siguiente', onclick: () => irA(etapa + 1) },
-            'Siguiente', h('span', { class: 'texto-largo' }, `: ${ETAPAS[etapa + 1].nombre}`))
+            h('span', {}, 'Siguiente', h('span', { class: 'texto-largo' }, `: ${ETAPAS[etapa + 1].nombre}`)), icono('flecha-der'))
           : h('button', { type: 'button', class: 'boton boton-primario', id: 'boton-siguiente', onclick: () => {
             if (!solicitud) { preparar(); return; }
             const t = $('solicitud-titulo');
             if (t) { t.focus({ preventScroll: true }); t.scrollIntoView({ block: 'start', behavior: reducido() ? 'auto' : 'smooth' }); }
-          } }, solicitud ? 'Ver solicitud' : 'Preparar solicitud')));
+          } }, solicitud ? 'Ver solicitud' : [h('span', { class: 'texto-largo' }, 'Preparar solicitud'), h('span', { class: 'texto-corto' }, 'Preparar')])));
   }
 
   // Acceso de solo lectura para las pruebas automáticas (no expone datos personales).

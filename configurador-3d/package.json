@@ -1,10 +1,13 @@
 {
   "name": "domo-configurador-3d",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Configurador 3D de DOMO BAIRES (prototipo privado)",
   "scripts": {
     "test": "node --test test/*.test.js",
-    "armar": "node scripts/armar-prototipo.js"
+    "armar": "node scripts/armar-prototipo.js",
+    "medidas": "node scripts/medidas.js",
+    "miniaturas": "node scripts/miniaturas.js",
+    "e2e": "node scripts/probar-e2e.js"
   }
 }

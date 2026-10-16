@@ -95,7 +95,7 @@
           },
           "puertas": 2,
           "origen_glb": {
-            "archivo_blend": "aureo_patagonico.blend",
+            "archivo_blend": "DOMO_Dormi_Aureo_y_Patagonico.blend",
             "escena": "DOMO Baires · Dormi Áureo y Patagónico",
             "coleccion": "Dormi Áureo · opción A"
           },
@@ -130,7 +130,7 @@
           },
           "puertas": 2,
           "origen_glb": {
-            "archivo_blend": "aureo_patagonico.blend",
+            "archivo_blend": "DOMO_Dormi_Aureo_y_Patagonico.blend",
             "escena": "DOMO Baires · Dormi Áureo y Patagónico",
             "coleccion": "Dormi Áureo · opción B"
           },
@@ -314,36 +314,44 @@
           "fuente": "blend_aureo_patagonico"
         },
         {
+          "id": "estructura",
+          "nombre": "Estructura",
+          "valor": "Muros de madera en negro: soleras, montantes y premarcos",
+          "estado": "confirmado",
+          "fuente": "blend_aureo_patagonico"
+        },
+        {
           "id": "puertas",
           "nombre": "Puertas",
-          "plantilla": "{puertas}, de {puerta_ancho_m} × {puerta_alto_m} m, abre hacia afuera",
+          "plantilla": "{puertas} al frente, de {puerta_ancho_m} × {puerta_alto_m} m",
           "estado": "confirmado",
           "fuente": "modelo_3d"
         },
         {
           "id": "panos_vidriados",
           "nombre": "Paños vidriados",
-          "plantilla": "{paños_vidriados}",
+          "plantilla": "{paños_vidriados} fijos: los dos del frente en diagonal y los dos costados",
           "estado": "confirmado",
           "fuente": "modelo_3d"
         },
         {
           "id": "muros_cerrados",
           "nombre": "Muros cerrados",
-          "estado": "pendiente",
+          "valor": "3, los de atrás, revestidos en madera por fuera",
+          "estado": "confirmado",
           "fuente": "modelo_3d"
         },
         {
           "id": "cubierta",
           "nombre": "Cubierta",
-          "valor": "Zome de chapa negra, con cielorraso de madera",
+          "valor": "Zome de 32 paños de chapa negra (4 filas de 8), sobre 136 barras",
           "estado": "confirmado",
-          "fuente": "modelo_3d"
+          "fuente": "blend_aureo_patagonico"
         },
         {
           "id": "piso",
           "nombre": "Piso",
-          "plantilla": "{piso_area_m2} m², {piso_interior_area_m2} m² interiores",
+          "plantilla": "Octogonal, de {piso_interior_area_m2} m² por dentro",
           "estado": "confirmado",
           "fuente": "modelo_3d"
         }
@@ -387,7 +395,15 @@
           "fuente": "blend_cubica",
           "coleccion": "Zome N4",
           "estado": "listo",
-          "medidas": { "ancho_m": 3.476, "fondo_m": 3.476, "alto_m": 3.5, "piso_area_m2": 5.44 },
+          "medidas": {
+            "ancho_m": 3.476,
+            "fondo_m": 3.476,
+            "alto_m": 3.5,
+            "piso_area_m2": 5.44,
+            "piso_lado_m": 2.333,
+            "puerta_ancho_m": 1.562,
+            "puerta_alto_m": 2.113
+          },
           "puertas": 1,
           "origen_glb": {
             "archivo_blend": "cubica.blend",
@@ -406,35 +422,44 @@
       "opciones": [],
       "composicion": [
         {
+          "id": "forma",
+          "nombre": "Forma",
+          "valor": "Cubo apoyado sobre una punta: 4 rombos de techo, 4 rombos de pared y 4 triángulos abajo",
+          "estado": "confirmado",
+          "fuente": "blend_cubica"
+        },
+        {
           "id": "estructura",
           "nombre": "Estructura",
-          "valor": "Perfilería negra",
+          "valor": "Tablas de 4,4 × 8,8 cm, en negro",
           "estado": "confirmado",
-          "fuente": "modelo_3d"
+          "fuente": "blend_cubica"
         },
         {
           "id": "puertas",
           "nombre": "Puertas",
-          "plantilla": "{puertas}, abre hacia afuera",
+          "plantilla": "{puertas} hexagonal y vidriada al frente, de {puerta_ancho_m} × {puerta_alto_m} m de paso; abre hacia afuera",
           "estado": "confirmado",
           "fuente": "modelo_3d"
         },
         {
           "id": "panos_vidriados",
           "nombre": "Paños vidriados",
-          "estado": "pendiente",
-          "fuente": "modelo_3d"
+          "valor": "30: los 2 de los costados de la puerta, toda la pared izquierda y 3 de los 4 rombos del techo",
+          "estado": "confirmado",
+          "fuente": "blend_cubica"
         },
         {
-          "id": "caras_cerradas",
-          "nombre": "Caras cerradas",
-          "estado": "pendiente",
-          "fuente": "modelo_3d"
+          "id": "panos_cerrados",
+          "nombre": "Paños cerrados",
+          "valor": "26: la pared derecha, la del fondo, el rombo del techo de atrás a la derecha y los 4 triángulos de abajo. Negros por fuera y de madera por dentro",
+          "estado": "confirmado",
+          "fuente": "blend_cubica"
         },
         {
           "id": "piso",
           "nombre": "Piso",
-          "plantilla": "{piso_area_m2} m²",
+          "plantilla": "Rombo de {piso_lado_m} m de lado",
           "estado": "confirmado",
           "fuente": "modelo_3d"
         }
@@ -444,7 +469,15 @@
         "media_obra": { "estado": "pendiente" },
         "llave_en_mano": { "estado": "pendiente" }
       },
-      "medidas": { "ancho_m": 3.476, "fondo_m": 3.476, "alto_m": 3.5, "piso_area_m2": 5.44 },
+      "medidas": {
+        "ancho_m": 3.476,
+        "fondo_m": 3.476,
+        "alto_m": 3.5,
+        "piso_area_m2": 5.44,
+        "piso_lado_m": 2.333,
+        "puerta_ancho_m": 1.562,
+        "puerta_alto_m": 2.113
+      },
       "medidas_fuente": "modelos/cubic.glb"
     }
   ]

@@ -26,6 +26,30 @@
     lateral: { az: 90, el: 9 },
     arriba: { az: 0, el: 86 },
   };
+  /*
+   * Lenguaje de materiales común a los tres Dormis (pedido de DOMO del 16/10:
+   * "la estética de las piezas visuales debe mantener una misma línea").
+   * Se define una sola vez, por nombre de rol, y se aplica al cargar cada GLB,
+   * en la página y en las miniaturas (que usan este mismo visor), así no puede
+   * divergir entre modelos. Solo toca los roles que el archivo de DOMO no fija:
+   * los colores del Áureo (maderas de la estructura, paneles, incrustaciones,
+   * puertas, persiana, podio y nodos de acero) quedan tal como vienen.
+   *   negro:  perfilería y chapa. Es la "chapa negra" del archivo de DOMO del Patagónico,
+   *           mate (rugosidad 0,7, la que se probó en el Patagónico): con brillo, los paños
+   *           de la cubierta que miran al sol se veían blancos.
+   *   madera: pisos, revestimientos y cielorrasos. Es el "piso de madera" del archivo
+   *           del Áureo, así los tres pisos son la misma madera que la del Áureo.
+   *   vidrio: todos los paños. Es el "vidrio" del archivo de DOMO del Patagónico.
+   * Colores en hexadecimal sRGB (como en Blender); se pasan a lineal al aplicarlos.
+   */
+  const MATERIALES = {
+    negro: { roles: ['marco_negro', 'chapa_negra'], hex: '#272729', rugosidad: 0.7, metal: 0.1 },
+    madera: { roles: ['piso', 'revestimiento_madera', 'cielorraso_madera'], hex: '#d4bc99', rugosidad: 0.7, metal: 0 },
+    vidrio: { roles: ['vidrio'], hex: '#daecf9', rugosidad: 0.04, metal: 0, opacidad: 0.24 },
+  };
+  const ROL_COMUN = {};
+  for (const [nombre, def] of Object.entries(MATERIALES)) for (const r of def.roles) ROL_COMUN[r] = Object.assign({ nombre }, def);
+
   const APERTURA_PUERTA = 100 * G;
   const MARGEN = 0.76;  // parte del cuadro que ocupa el modelo
   const ENTORNO = 0.62; // cuánto ilumina el entorno de estudio frente al sol (más bajo = más volumen)
@@ -131,6 +155,7 @@
     contacto.rotation.x = -Math.PI / 2;
     contacto.position.y = -0.002;
     contacto.renderOrder = -1;
+    sombra.visible = contacto.visible = false; // aparecen con el primer modelo
     escena.add(sombra, contacto);
 
     // ---------- estado ----------
@@ -229,11 +254,13 @@
         o.receiveShadow = false;
         const m = o.material;
         if (!m) return;
+        const comun = ROL_COMUN[m.name];
         if (m.name === 'vidrio') {
           if (!vidrios.has(m)) {
+            // Un único vidrio para los tres modelos: transparente, con reflejos del entorno.
             const v = new THREE.MeshPhysicalMaterial({
-              name: 'vidrio', color: m.color.clone().lerp(new THREE.Color(1, 1, 1), 0.35), metalness: 0, roughness: 0.04,
-              transparent: true, opacity: 0.26, depthWrite: false, side: THREE.DoubleSide, envMapIntensity: 1.4, reflectivity: 0.6,
+              name: 'vidrio', color: new THREE.Color(comun.hex).convertSRGBToLinear(), metalness: comun.metal, roughness: comun.rugosidad,
+              transparent: true, opacity: comun.opacidad, depthWrite: false, side: THREE.DoubleSide, envMapIntensity: 1.4, reflectivity: 0.6,
             });
             vidrios.set(m, v);
             m.dispose();
@@ -242,6 +269,12 @@
           o.castShadow = false;
           o.renderOrder = 10;
           return;
+        }
+        if (comun && !m.userData.lenguajeComun) {
+          m.color.set(comun.hex).convertSRGBToLinear();
+          m.roughness = comun.rugosidad;
+          m.metalness = comun.metal;
+          m.userData.lenguajeComun = comun.nombre;
         }
         m.side = THREE.DoubleSide;
         m.envMapIntensity = ENTORNO;
@@ -334,9 +367,17 @@
       const tanH = tanV * camara.aspect;
       const q = new THREE.Vector3();
       if (el < 60) {
-        let lo = Infinity, hi = -Infinity;
-        for (const p of puntos) { const u = q.copy(p).sub(objetivo).dot(arriba); lo = Math.min(lo, u); hi = Math.max(hi, u); }
+        // Centra la silueta en el cuadro, a lo alto y a lo ancho, para que los
+        // cuatro modelos queden encuadrados igual (en el visor y en las miniaturas).
+        let lo = Infinity, hi = -Infinity, iz = Infinity, de = -Infinity;
+        for (const p of puntos) {
+          q.copy(p).sub(objetivo);
+          const u = q.dot(arriba);
+          const x = q.dot(derecha);
+          lo = Math.min(lo, u); hi = Math.max(hi, u); iz = Math.min(iz, x); de = Math.max(de, x);
+        }
         objetivo.y += ((lo + hi) / 2) / arriba.y;
+        objetivo.addScaledVector(derecha, (iz + de) / 2);
       }
       let d = 0;
       for (const p of puntos) {
@@ -468,6 +509,7 @@
         aplicarColor(objeto, color, false);
         escena.add(objeto);
         ubicarLuces(d.caja);
+        sombra.visible = contacto.visible = true;
         if (primera || encuadreAutomatico) encuadrar(vistaActual, false);
         else encuadrar('centrar', false);
         primera = false;
@@ -493,6 +535,8 @@
     function quitarActual() {
       if (actual) escena.remove(actual.objeto);
       actual = null;
+      // Sin modelo no queda nada a la vista (ni la sombra ni el contacto con el suelo).
+      sombra.visible = contacto.visible = false;
       sucio = true;
     }
 
@@ -540,5 +584,5 @@
     };
   }
 
-  window.DomoVisor = { crear, webglDisponible, VISTAS };
+  window.DomoVisor = { crear, webglDisponible, VISTAS, MATERIALES };
 })();

@@ -99,8 +99,10 @@ const esperar3d = (page) => page.waitForFunction(() => {
 }, null, { timeout: 30000 });
 
 async function sinScrollHorizontal(page, donde) {
-  const { ancho, doc } = await page.evaluate(() => ({ ancho: window.innerWidth, doc: document.documentElement.scrollWidth }));
+  const { ancho, doc, pie } = await page.evaluate(() => ({ ancho: window.innerWidth, doc: document.documentElement.scrollWidth, pie: document.getElementById('pie').getBoundingClientRect() }));
   assert.ok(doc <= ancho, `${donde}: hay desplazamiento horizontal (${doc} > ${ancho})`);
+  // El pie queda fijo abajo: con un alto fraccionario, Chromium deja asomar por debajo el texto que pasa detrás.
+  assert.ok(Number.isInteger(pie.height), `${donde}: el pie mide ${pie.height} px de alto (tiene que ser entero)`);
 }
 
 async function captura(page, nombre) {
@@ -162,7 +164,7 @@ async function recorrido(navegador, html, ancho, alto, et) {
     await page.click('.muestra[data-valor="azul"]');
     await page.waitForFunction(() => !window.DomoConfigurador.visor.ocupado);
     assert.match(await page.textContent('#pie'), /Opción B · Azul Francia/);
-    assert.match(await page.textContent('.referencia figcaption'), /Foto de referencia/);
+    assert.match(await page.textContent('.etapa-cabeza .foto-ref figcaption'), /Foto de referencia/);
     await sinScrollHorizontal(page, 'etapa 2');
   });
   await paso(`${et}: abrir y cerrar las puertas`, async () => {
@@ -280,6 +282,24 @@ async function main() {
 
   await recorrido(navegador, html, 1280, 860, 'escritorio');
   await recorrido(navegador, html, 390, 844, 'celular');
+
+  await paso('pantalla angosta (360 px): nada se sale ni se tapa', async () => {
+    const { ctx, page, errores } = await abrir(navegador, html, { ancho: 360, alto: 760 });
+    await esperar3d(page);
+    await sinScrollHorizontal(page, '360 px');
+    const r = await page.evaluate(() => {
+      const texto = (el) => { const g = document.createRange(); g.selectNodeContents(el); return g.getBoundingClientRect(); };
+      const titulo = texto(document.querySelector('.marca-titulo')).right;
+      const sello = document.querySelector('.sello').getBoundingClientRect().left;
+      const fuera = [...document.querySelectorAll('.tarjeta-modelo')].filter((t) => texto(t.querySelector('.tm-medidas')).right > t.querySelector('.tm-texto').getBoundingClientRect().right + 1).length;
+      return { titulo, sello, fuera };
+    });
+    assert.ok(r.titulo < r.sello, `el título de la marca (hasta ${r.titulo}) queda debajo del sello (desde ${r.sello})`);
+    assert.equal(r.fuera, 0, 'las medidas de las tarjetas quedan dentro de la tarjeta');
+    await captura(page, 'celular_360_1_modelo');
+    assert.deepEqual(errores, []);
+    await ctx.close();
+  });
 
   await paso('el Dormi Patagónico y el Cubic muestran "Diseño único" y su composición', async () => {
     for (const id of ['dormi_patagonico', 'cubic']) {

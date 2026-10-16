@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /*
  * Genera las miniaturas de las tarjetas (imagenes/miniatura_<id>.png) con el
- * mismo visor 3D de la página, en vista 3/4 y con fondo transparente.
+ * mismo visor 3D de la página y la misma configuración (lenguaje de materiales,
+ * luz, sombra, vista 3/4 y encuadre centrado), con fondo transparente: en la
+ * página se ven sobre el mismo fondo que el visor.
  *
  * Usa Playwright y Chromium (no son dependencias del proyecto). Las librerías
  * de three.js se toman de una copia local (THREE_LOCAL) en vez del CDN.

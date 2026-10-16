@@ -345,10 +345,15 @@ ob_hoja.matrix_world = Matrix.Translation(pivote)  # así las medidas de exporta
 ob_hoja['bisagra'] = 'derecha'                     # mirando la puerta desde afuera
 ob_hoja['abre'] = 'hacia afuera'                   # en el GLB: giro positivo sobre Y
 
+# Lado del rombo del piso: promedio de sus 4 lados (los más largos del contorno de las vigas de base).
+lados_piso = sorted(math.dist(piso_xy[i], piso_xy[(i + 1) % len(piso_xy)]) for i in range(len(piso_xy)))[-4:]
+print(f'@@ lados del piso: {[round(x, 3) for x in lados_piso]}')
 extras = {
     'id': 'cubic',
     'fuente': os.path.basename(blend), 'escena': ESCENA, 'coleccion': COL,
     'puertas': 1,
-    'medidas': {'piso_area_m2': round(piso_area, 2)},
+    # Paso libre de la puerta: el vano hexagonal medido entre las caras interiores de sus tablas.
+    'medidas': {'piso_area_m2': round(piso_area, 2), 'piso_lado_m': round(sum(lados_piso) / 4, 3),
+                'puerta_ancho_m': round(ancho_vano, 3), 'puerta_alto_m': round(alto_vano, 3)},
 }
 A.exportar(salida, extras)
