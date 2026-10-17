@@ -8,13 +8,25 @@ escena "Zome Dormi octogonal", colección "Zome Dormi octogonal":
   Vidrios (4)       paños fijos de los muros 2, 3, 7, 8 -> vidrios (vidrio)
 Planta octogonal; la puerta está en el Muro 1 (premarco M9/M11) y los muros 4, 5 y 6 son cerrados.
 
-Lo que el archivo no trae y se agrega (las fotos de DOMO lo muestran), con medidas sacadas de la geometría:
+Lo que el archivo no trae y se agrega, con medidas sacadas de la geometría del archivo (anotado para DOMO):
   * hoja de la puerta vidriada "puerta_hoja_1" (marco negro + vidrio) que llena el vano del premarco del Muro 1;
-  * dos vidrios fijos angostos a los lados de la puerta (huecos entre el montante de esquina y la jamba del Muro 1);
-  * revestimiento de madera por fuera de los muros cerrados 4, 5 y 6 (un panel por muro, alto y ancho del muro);
+    la bisagra a la izquierda (mirando desde afuera) y que abra hacia afuera son supuestos: el archivo no lo dice;
+  * los dos huecos de 23 cm del Muro 1, entre el montante de esquina (M3) y el parante entero (M5), quedan
+    cerrados como muro, en el negro de la perfilería: en el archivo son huecos del entramado, sin premarco ni
+    vidrio (los únicos vidrios del archivo son los 4 de los muros 2, 3, 7 y 8);
+  * revestimiento de madera por fuera de los muros cerrados 4, 5 y 6: tablas verticales entre los montantes de
+    esquina, del ancho de la sección de madera del archivo (8,8 cm). Que sean de madera sale de los renders de
+    DOMO (un muro de tablas verticales); la madera y el ancho de las tablas están a confirmar;
   * piso de madera octogonal dentro de las soleras, del alto de la solera inferior;
   * segunda solera superior que cierra los 4,4 cm abiertos entre los muros y el aro de barras del techo;
   * cielorraso de madera clara apenas por debajo de cada teja (las barras quedan a la vista como nervios negros).
+
+Diferencias con los renders de DOMO (el GLB sigue al archivo; quedan como preguntas para DOMO): en el archivo la
+cubierta es de tejas escalonadas con aletas y tiene una corona de puntas de barras en la cumbrera; los triángulos
+sobre los muros son de chapa; el frente es una puerta de 0,9 m con dos huecos cerrados a los lados y la diagonal
+derecha del frente es de vidrio. En los renders, la cubierta es lisa de paños grandes, sin corona, los triángulos
+sobre los muros son vidriados, el frente son dos paños iguales con parante central y travesaño, y la diagonal
+derecha es de madera.
 
 Cubierta: las tejas del archivo tienen las normales bien (todas hacia afuera); los paños que se veían blancos en la
 exportación cruda eran el brillo especular de la chapa (rugosidad 0,35 en el archivo) sobre paños planos.
@@ -150,17 +162,30 @@ alto_piso = min(l['solera_inf_alto'] for l in lados.values())
 A.agregar_malla('base', piso, *prisma(octogono(a_int), 0.0, alto_piso))
 
 # --- Revestimiento de madera por fuera de los muros cerrados (los que no tienen vidrio ni puerta: 4, 5 y 6).
-#     Un panel por muro: del alto del muro y del ancho del lado exterior, con las puntas a inglete como las soleras.
-#     El archivo no da el espesor del revestimiento: 2 cm, solo visual.
-ESP_REV = 0.02
+#     Tablas verticales entre los montantes de esquina (M3), que quedan a la vista como el marco negro de cada muro,
+#     del pie de la solera inferior a la cara de arriba de la solera superior. Ancho de cada tabla: la sección de la
+#     madera del archivo (8,8 cm), repartida en partes iguales, con una junta de 4 mm. El archivo no da el espesor:
+#     2 cm, con la cara de afuera 5 mm por delante del entramado (solo visual).
+ANCHO_TABLA = max(int(x) for x in piezas(1, 'M1')[0]['seccion_mm'].split('x')) / 1000   # 88 mm
+ESP_REV, SALIENTE, JUNTA = 0.02, 0.005, 0.004
 con_vidrio = {int(o.name.split('-')[0].replace('Muro', '')) for o in v2}
 cerrados = [n for n in sorted(muros) if n != 1 and n not in con_vidrio]
+tablas_rev = 0
 for n in cerrados:
     L = lados[n]
-    a0, a1 = L['a_ext'], L['a_ext'] + ESP_REV
-    poli = [L['n'] * a0 - L['t'] * a0 * TAN, L['n'] * a0 + L['t'] * a0 * TAN,
-            L['n'] * a1 + L['t'] * a1 * TAN, L['n'] * a1 - L['t'] * a1 * TAN]
-    A.agregar_malla('cerramiento', revestimiento, *prisma([tuple(p.xy) for p in poli], L['z_bajo'], L['z_alto']))
+    esquinas = sorted(piezas(n, 'M3'), key=lambda o: rango_t(L, [o])[0])
+    t0, t1 = rango_t(L, [esquinas[0]])[1], rango_t(L, [esquinas[1]])[0]
+    k = max(1, round((t1 - t0) / ANCHO_TABLA))
+    paso = (t1 - t0) / k
+    a1 = L['a_ext'] + SALIENTE
+    for i in range(k):
+        ta = t0 + i * paso + (JUNTA / 2 if i else 0)
+        tb = t0 + (i + 1) * paso - (JUNTA / 2 if i < k - 1 else 0)
+        A.agregar_malla('cerramiento', revestimiento, *caja_local(L, ta, tb, a1 - ESP_REV, a1, L['z_bajo'], L['z_alto']))
+    # fondo de las juntas: una lámina detrás de las tablas, para que las juntas no dejen pasar la luz
+    A.agregar_malla('cerramiento', revestimiento,
+                    *caja_local(L, t0, t1, a1 - ESP_REV - 0.001 - JUNTA, a1 - ESP_REV - 0.001, L['z_bajo'], L['z_alto']))
+    tablas_rev += k
 
 # --- Cierre entre muros y techo: en el archivo, la solera superior termina 4,4 cm por debajo del aro de barras del
 #     techo y ese hueco queda abierto alrededor de todo el Dormi. Se cierra con una segunda solera, copia de la
@@ -187,15 +212,16 @@ seccion = sorted(int(x) for x in jambas[0]['seccion_mm'].split('x'))
 perfil = seccion[0] / 1000                            # 44 mm: cara de la jamba del premarco
 esp_hoja = seccion[0] / 1000                          # hoja de 44 mm de espesor, centrada en el muro
 
-# Vidrios fijos a los lados de la puerta: entre el montante de esquina (M3) y la jamba entera (M5).
+# Huecos a los lados de la puerta, entre el montante de esquina (M3) y el parante entero (M5): en el archivo son
+# huecos del entramado (sin premarco ni vidrio). Se cierran como muro, del espesor del muro y en el negro de la
+# perfilería, de la solera inferior a la superior.
 montantes = sorted(piezas(1, 'M3'), key=lambda o: rango_t(L1, [o])[0])
 jambas_ent = sorted(piezas(1, 'M5'), key=lambda o: rango_t(L1, [o])[0])
 z_sup = min(p.z for p in pts(piezas(1, 'M2')))      # cara inferior de la solera superior
 laterales = [(rango_t(L1, [montantes[0]])[1], rango_t(L1, [jambas_ent[0]])[0]),
              (rango_t(L1, [jambas_ent[1]])[1], rango_t(L1, [montantes[1]])[0])]
 for ta, tb in laterales:
-    A.agregar_malla('vidrios', vidrio, *caja_local(L1, ta, tb, a_med - esp_vidrio / 2, a_med + esp_vidrio / 2,
-                                                   z_umbral, z_sup))
+    A.agregar_malla('cerramiento', marco_negro, *caja_local(L1, ta, tb, L1['a_int'], L1['a_ext'], z_umbral, z_sup))
 
 # --- Hoja de la puerta: marco negro de 44 mm + vidrio. Bisagra del lado izquierdo mirando desde afuera
 #     (el archivo no lo dice), sobre la cara exterior de la hoja: abre hacia afuera.
@@ -247,6 +273,6 @@ extras = {
 }
 print('@@ lados', {n: (round(l['a_ext'], 4), round(l['a_int'], 4), round(l['z_alto'], 3)) for n, l in lados.items()},
       'cerrados', cerrados, 'vidrio', sorted(con_vidrio), 'esp_vidrio', round(esp_vidrio, 4),
-      'laterales', [(round(a, 3), round(b, 3)) for a, b in laterales], 'hoja', round(ancho_hoja, 3), round(alto_hoja, 3),
+      'huecos cerrados', [(round(a, 3), round(b, 3)) for a, b in laterales], 'tablas', tablas_rev, 'hoja', round(ancho_hoja, 3), round(alto_hoja, 3),
       'hueco muros-techo', round(hueco_techo, 4))
 A.exportar(salida, extras)

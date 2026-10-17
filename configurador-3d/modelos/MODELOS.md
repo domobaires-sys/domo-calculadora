@@ -27,6 +27,8 @@ Cada Dormi se arma **desde el archivo de Blender de DOMO BAIRES** con un script 
 - **Unidades**: metros. **Arriba**: Y en el GLB (Z en Blender).
 - **Origen**: centro de la planta, a nivel del terreno (lo más bajo del modelo queda en 0).
 - **Frente**: la puerta principal mira hacia **+Z** del GLB (−Y en Blender). Las vistas "frente" y "3/4" del visor dependen de esto.
+  - Ajuste del Áureo: al frente va el lado que muestran las capturas de DOMO, el de la puerta P2 (el archivo la rotula "Acceso Secundaria"; P1, "Acceso Principal", queda atrás a la izquierda). Así la vista de frente del visor es la captura del 07/10 y la 3/4, la del 08/10. `puerta_hoja_1` es P2 y `puerta_hoja_2`, P1; el nodo `modelo` lo dice en `frente: "P2"`. Queda para confirmar con DOMO.
+  - Datos extra del Áureo en `medidas`: `ventanas` y `ventana_area_m2` (del objeto "Vidrio-11", tipo "Ventana") y `rombos_ventilacion` (rombos con persianas).
 - **Nodo raíz** `modelo`, con datos (`extras`): `id`, `fuente`, `escena`, `coleccion`, `puertas`, `medidas` (`ancho_m`, `fondo_m`, `alto_m` y las que el archivo de DOMO trae, como `piso_lado_m`, `piso_area_m2`).
 - **Grupos** (hijos de `modelo`): `estructura`, `cerramiento`, `vidrios`, `puertas`, `ventanas`, `cubierta`, `base`, `detalles`. Cada grupo une sus mallas por material.
 - **Hojas de puerta**: objetos `puerta_hoja_1`, `puerta_hoja_2`… con el origen sobre el eje de la bisagra (vertical). El visor las abre girándolas sobre Y. En el Patagónico la hoja trae además `bisagra` ("izquierda", mirando desde afuera) y `abre` ("hacia afuera": giro negativo sobre Y). En el Cubic, `bisagra` "derecha" y `abre` "hacia afuera": giro positivo sobre Y.

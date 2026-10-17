@@ -45,9 +45,22 @@ function armar() {
   const glbs = [];
   for (const m of catalogo.modelos) {
     if (m.imagen && m.imagen.archivo) m.imagen.archivo = dataUri(m.imagen.archivo);
+    // Colores de paneles con miniatura propia (los valores con hex de una opción color_material).
+    const colores = (m.opciones || []).filter((o) => o.tipo === 'color_material').flatMap((o) => o.valores.filter((v) => v.hex).map((v) => v.id));
     for (const a of m.archivos_3d || []) {
-      if (existe(a.miniatura)) a.miniatura = dataUri(a.miniatura);
-      else { if (a.miniatura) avisos.push(`Sin miniatura ${a.miniatura} (se usa la foto de referencia).`); a.miniatura = null; }
+      if (existe(a.miniatura)) {
+        // Miniatura y sus variantes ("-oscuro" y "-<color>"), todas incrustadas: { sufijo: data URI }.
+        const variantes = {};
+        for (const sufijo of ['', ...colores.map((c) => '-' + c)]) {
+          for (const tema of ['', '-oscuro']) {
+            const ruta = a.miniatura.replace(/(\.\w+)$/, `${sufijo}${tema}$1`);
+            if (existe(ruta)) variantes[sufijo + tema] = dataUri(ruta);
+            else avisos.push(`Sin miniatura ${ruta} (se usa la de color natural o la del tema claro).`);
+          }
+        }
+        a.miniatura = variantes[''];
+        a.miniaturas = variantes;
+      } else { if (a.miniatura) avisos.push(`Sin miniatura ${a.miniatura} (se usa la foto de referencia).`); a.miniatura = null; }
       if (existe(a.archivo)) {
         const b64 = fs.readFileSync(path.join(RAIZ, a.archivo)).toString('base64');
         glbs.push(`<script type="application/octet-stream" id="glb-${a.id}">${b64}</script>`);

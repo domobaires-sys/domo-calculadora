@@ -58,10 +58,16 @@ test('los tres modelos comparten un único negro, un único vidrio y una misma m
   }
 });
 
-/** Ancho y alto de un PNG (cabecera IHDR) o de un JPEG (marcador SOF). */
+/** Ancho y alto de un PNG (cabecera IHDR), un WebP (VP8X, VP8L o VP8) o un JPEG (marcador SOF). */
 function medidaImagen(ruta) {
   const b = fs.readFileSync(ruta);
   if (b.readUInt32BE(0) === 0x89504e47) return [b.readUInt32BE(16), b.readUInt32BE(20)];
+  if (b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP') {
+    const tipo = b.toString('ascii', 12, 16);
+    if (tipo === 'VP8X') return [1 + b.readUIntLE(24, 3), 1 + b.readUIntLE(27, 3)];
+    if (tipo === 'VP8L') { const v = b.readUInt32LE(21); return [1 + (v & 0x3fff), 1 + ((v >> 14) & 0x3fff)]; }
+    if (tipo === 'VP8 ') return [b.readUInt16LE(26) & 0x3fff, b.readUInt16LE(28) & 0x3fff];
+  }
   let i = 2;
   while (i < b.length) {
     const marca = b[i + 1];
@@ -75,11 +81,22 @@ function medidaImagen(ruta) {
 test('las fotos de referencia tienen el mismo recorte y tamaño, y las miniaturas también', () => {
   const fotos = catalogo.modelos.map((m) => medidaImagen(path.join(RAIZ, m.imagen.archivo)));
   for (const f of fotos) assert.deepEqual(f, [400, 400], 'fotos cuadradas de 400 px (scripts/fotos.py)');
-  for (const a of catalogo.modelos.flatMap((m) => m.archivos_3d)) {
-    const ruta = path.join(RAIZ, a.miniatura);
-    if (!fs.existsSync(ruta)) continue; // se genera cuando exista el GLB
-    assert.deepEqual(medidaImagen(ruta), [640, 480], a.miniatura);
-    assert.ok(fs.statSync(ruta).size < 120 * 1024, `${a.miniatura} pesa menos de 120 KB`);
+  for (const m of catalogo.modelos) {
+    const colores = m.opciones.filter((o) => o.tipo === 'color_material').flatMap((o) => o.valores.filter((v) => v.hex).map((v) => '-' + v.id));
+    for (const a of m.archivos_3d) {
+      if (!fs.existsSync(path.join(RAIZ, a.archivo))) continue; // se generan cuando exista el GLB
+      // Tema claro y oscuro, y una por cada color de paneles: todas con el mismo visor y el mismo encuadre.
+      for (const sufijo of ['', ...colores]) {
+        for (const tema of ['', '-oscuro']) {
+          const rel = a.miniatura.replace(/(\.\w+)$/, `${sufijo}${tema}$1`);
+          const ruta = path.join(RAIZ, rel);
+          assert.ok(fs.existsSync(ruta), `falta ${rel}: correr "npm run miniaturas"`);
+          assert.deepEqual(medidaImagen(ruta), [360, 270], rel);
+          assert.ok(fs.statSync(ruta).size < 40 * 1024, `${rel} pesa menos de 40 KB`);
+          assert.ok(fs.statSync(ruta).mtimeMs >= fs.statSync(path.join(RAIZ, a.archivo)).mtimeMs, `${rel} es anterior a ${a.archivo}: correr "npm run miniaturas"`);
+        }
+      }
+    }
   }
 });
 

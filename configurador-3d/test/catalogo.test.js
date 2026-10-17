@@ -22,7 +22,7 @@ test('cada modelo declara su GLB, su miniatura y una foto de referencia que exis
     assert.ok(m.archivos_3d.some((a) => a.id === m.modelo_3d), `${m.id}: el archivo predeterminado está declarado`);
     for (const a of m.archivos_3d) {
       assert.equal(a.archivo, `modelos/${a.id}.glb`);
-      assert.equal(a.miniatura, `imagenes/miniatura_${a.id}.png`);
+      assert.equal(a.miniatura, `imagenes/miniatura_${a.id}.webp`);
     }
     assert.ok(fs.existsSync(path.join(RAIZ, m.imagen.archivo)), m.imagen.archivo);
     assert.ok(m.imagen.alt && m.descripcion);
@@ -56,6 +56,21 @@ test('el Dormi Patagónico y el Cubic no tienen opciones de diseño, pero sí su
       assert.ok(['confirmado', 'pendiente'].includes(c.estado), `${m.id}/${c.id}`);
       if (c.estado === 'confirmado') assert.ok(c.valor || c.plantilla, `${m.id}/${c.id} confirmado sin dato`);
     }
+  }
+});
+
+test('las medidas que no son comparables entre modelos dicen exactamente qué miden', () => {
+  // El ancho × fondo × alto del Áureo incluye el podio; su archivo lo trae así.
+  assert.equal(modelo('dormi_aureo').medidas_nota, 'con el podio');
+  assert.ok(modelo('dormi_aureo').fuente_medidas_nota in catalogo.fuentes);
+  // El Patagónico mide su planta por fuera de los muros: el resumen informa la de adentro.
+  const pat = modelo('dormi_patagonico');
+  assert.equal(pat.medida_superficie, 'piso_interior_area_m2');
+  assert.match(pat.etiquetas_medidas.piso_area_m2, /por fuera/);
+  assert.match(pat.etiquetas_medidas.piso_interior_area_m2, /por dentro/);
+  for (const m of catalogo.modelos) {
+    const clave = m.medida_superficie || 'piso_area_m2';
+    assert.ok(m.etiquetas_medidas && m.etiquetas_medidas[clave], `${m.id}: la superficie del resumen tiene su etiqueta propia`);
   }
 });
 

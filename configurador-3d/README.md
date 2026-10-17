@@ -7,7 +7,7 @@ Cada modelo 3D sale del archivo de Blender de DOMO (ver [`modelos/MODELOS.md`](m
 ## El recorrido
 
 1. **Modelo**: tres tarjetas con miniatura 3D, una línea de descripción y las medidas. Elegir una cambia el 3D.
-2. **Diseño**: el Dormi Áureo tiene dos opciones (trama A o B, del archivo de DOMO, y el color de los paneles: Natural, Azul Francia, Blanco o Negro). El Patagónico y el Cubic son de diseño único: se muestra qué incluyen. Acá está también la foto de referencia de DOMO.
+2. **Diseño**: el Dormi Áureo tiene dos opciones (la trama, A con los rombos cruzados en X o B con los rombos partidos en dos, las dos del archivo de DOMO; y el color de los paneles: Natural, Azul Francia, Blanco o Negro). El Patagónico y el Cubic son de diseño único: se muestra qué incluyen. Acá está también la foto de referencia de DOMO.
 3. **Entrega**: Kit, Media obra o Llave en mano, con su descripción. Precio: pendiente de cotización.
 4. **Solicitud**: resumen completo, datos de contacto y botón "Preparar solicitud", que arma el texto para copiar. **No se envía nada desde la página.** El enlace de la configuración guarda solo el modelo y las opciones, nunca datos personales.
 
@@ -68,7 +68,7 @@ En pantalla las medidas se escriben con coma decimal ("4,75 m", "15,5 m²") y co
 
 ### Fotos de referencia
 
-`python3 scripts/fotos.py "<carpeta referencias de DOMO>"` recorta las tres fotos al mismo cuadrado de 400 × 400 px. Los recortes elegidos están escritos en el script.
+`python3 scripts/fotos.py "<carpeta referencias de DOMO>"` recorta las tres fotos al mismo cuadrado de 400 × 400 px. Los recortes elegidos están escritos en el script. En la captura de Blender del Áureo borra además los indicadores del editor (cursor 3D, eje Z y punto de origen); el resto de la imagen queda como la mandó DOMO.
 
 ### Precios
 
@@ -80,11 +80,18 @@ Hoy están todos pendientes. En `catalogo.json`, cada modelo tiene `precios` con
 
 `iva` puede ser `"incluido"` o `"no_incluido"`. Un precio sin importe, en 0 o sin moneda se sigue mostrando "Pendiente de cotización". Después correr `npm test` y `npm run armar`, y subir `version_catalogo`.
 
-### Composición del Patagónico y del Cubic
+### Composición de cada modelo
 
-La lista "Qué incluye" está en `modelos[].composicion`. Cada fila tiene un `valor` fijo o una `plantilla` con datos del modelo 3D (por ejemplo `"{paños_vidriados}"`) y su `estado`: lo que todavía no está confirmado va con `"estado": "pendiente"` y se muestra "A confirmar".
+La ficha de cada modelo está en `modelos[].composicion`. Cada fila tiene un `valor` fijo o una `plantilla` con datos del modelo 3D (por ejemplo `"{paños_vidriados}"`), su `fuente` y su `estado`: lo que todavía no está confirmado va con `"estado": "pendiente"` y se muestra "A confirmar". Una fila puede llevar una `nota` interna (no se muestra) que explica de dónde sale o qué falta confirmar.
 
-La del Patagónico y la del Cubic está completa con lo que trae el archivo de DOMO de cada uno (planta o forma, estructura, puerta, paños vidriados y cerrados, cubierta y piso). Las cifras de puertas, lados y superficies salen de los GLB por plantilla; las del Cubic (`piso_lado_m`, `puerta_ancho_m`, `puerta_alto_m`) las calcula `modelos/fuente/cubic.py` de las tablas del archivo. Lo que se dibujó solo a partir de las fotos (vidrios a los lados de la puerta del Patagónico, cielorraso de madera) no figura en la lista. En el Áureo, "Paños vidriados" sigue "A confirmar".
+En la ficha figura, como confirmado, solo lo que trae el archivo de Blender de DOMO o se calcula de su geometría. Las cifras salen de los GLB por plantilla: las escriben los scripts de `modelos/fuente/` leyendo el archivo (por ejemplo, en el Áureo la superficie de la ventana y los rombos con persianas; en el Cubic, el lado del piso).
+
+Lo que el 3D dibuja a partir de las fotos de DOMO, porque el archivo no lo trae, no figura como confirmado (el detalle está en cada script de `modelos/fuente/`):
+
+- **Patagónico**: la hoja de la puerta, el revestimiento de tablas de madera de los 3 muros de atrás, el piso, el cielorraso de madera y los dos huecos de 23 cm a los lados de la puerta, que se cierran en negro como muro.
+- **Cubic**: los vidrios (el archivo no trae ninguno: el 3D vidria las 5 caras sin panel, como se ve en las fotos; esa fila queda "A confirmar"), los colores (negro por fuera, madera por dentro; en el archivo las tablas son de color madera), la hoja de la puerta y el piso.
+
+Las dudas para DOMO están en [`docs/analisis-y-decisiones.md`](docs/analisis-y-decisiones.md), sección "Preguntas sobre los modelos 3D".
 
 ## Privacidad
 

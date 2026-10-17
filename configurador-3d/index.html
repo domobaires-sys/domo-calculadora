@@ -26,12 +26,15 @@
   <symbol id="i-enlace" viewBox="0 0 24 24"><path d="M10 14l4-4"/><path d="M11 7l2-2a4.2 4.2 0 0 1 6 6l-2 2"/><path d="M13 17l-2 2a4.2 4.2 0 0 1-6-6l2-2"/></symbol>
   <symbol id="i-tilde" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
   <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></symbol>
+  <symbol id="i-menos" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-mas" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-centrar" viewBox="0 0 24 24"><path d="M8 8h8v8H8z"/><path d="M12 3v3"/><path d="M12 18v3"/><path d="M3 12h3"/><path d="M18 12h3"/></symbol>
 </svg>
 <div class="app" id="app">
   <header class="cabecera">
     <div class="marca">
-      <img class="logo logo-claro" src="imagenes/logo-domo.png" width="249" height="240" alt="DOMO BAIRES">
-      <img class="logo logo-oscuro" src="imagenes/logo-domo-blanco.png" width="249" height="240" alt="DOMO BAIRES">
+      <img class="logo solo-claro" src="imagenes/logo-domo.png" width="249" height="240" alt="DOMO BAIRES">
+      <img class="logo solo-oscuro" src="imagenes/logo-domo-blanco.png" width="249" height="240" alt="DOMO BAIRES">
       <div class="marca-texto">
         <span class="marca-titulo">Configurador de Dormis</span>
         <span class="marca-sub">DOMO BAIRES</span>
@@ -42,8 +45,10 @@
 
   <section class="escenario" aria-label="Vista 3D del modelo">
     <div class="visor" id="visor">
-      <div class="visor-rotulo" id="visor-rotulo"></div>
-      <div class="visor-acciones" id="visor-acciones"></div>
+      <div class="visor-arriba">
+        <div class="visor-rotulo" id="visor-rotulo"></div>
+        <div class="visor-acciones" id="visor-acciones"></div>
+      </div>
       <div class="visor-vistas" id="visor-vistas" role="toolbar" aria-label="Vistas de la cámara"></div>
       <div class="visor-capa" id="visor-capa" aria-live="polite"></div>
     </div>

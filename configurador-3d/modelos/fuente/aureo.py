@@ -4,6 +4,11 @@ Fuente: DOMO_Dormi_Aureo_y_Patagonico.blend (carpeta "Diseño de domos/modelos_b
 escena "DOMO Baires · Dormi Áureo y Patagónico", colección "Dormi Áureo · opción A" u "opción B".
 Las capturas de referencia de DOMO (carpeta "Fotos modelos/Dormis") muestran la opción A.
 
+Frente (+Z del GLB): el lado que muestran las dos capturas de DOMO, el de la puerta P2, con la ventana
+a la derecha y las persianas altas arriba. El archivo rotula P1 "Acceso Principal" y P2 "Acceso Secundaria",
+pero DOMO mostró este lado las dos veces; así la vista de frente y la 3/4 del visor coinciden con sus
+capturas. Cuál es el frente queda para confirmar con DOMO (las dos puertas tienen su escalón).
+
 Uso: python aureo.py <archivo.blend> <A|B> <salida.glb>
 """
 import os
@@ -21,11 +26,12 @@ sc = comun.abrir(blend, ESCENA)
 objs = comun.objetos(sc, dentro_de=COL, excluir_colecciones=[f'Entorno {opcion}'])
 por_nombre = {o.name: o for o in objs}
 
-# Marco común: centro = centro del piso pentagonal; frente = puerta principal (P1).
+# Marco común: centro = centro del piso pentagonal; frente = la puerta del lado de las capturas de DOMO (P2).
+FRENTE = 'P2'
 piso = por_nombre[f'Piso {opcion}']
 c = sum((piso.matrix_world @ v.co for v in piso.data.vertices), Vector()) / len(piso.data.vertices)
-p1 = comun.caja([por_nombre[f'P1-Hoja {opcion}']])
-d = (p1[0] + p1[1]) / 2 - c
+pf = comun.caja([por_nombre[f'{FRENTE}-Hoja {opcion}']])
+d = (pf[0] + pf[1]) / 2 - c
 z0 = comun.caja(objs)[0].z
 M = comun.matriz_marco((c.x, c.y), z0, (d.x, d.y))
 
@@ -66,7 +72,8 @@ for o in objs:
     A.agregar(o, g, rol)
 
 # Hojas de puerta: un objeto por puerta, con el pivote en la bisagra (lado opuesto al tirador).
-for i, (pn, partes) in enumerate(sorted(hojas.items()), 1):
+# puerta_hoja_1 es la del frente (P2); puerta_hoja_2, la otra (P1).
+for i, (pn, partes) in enumerate(sorted(hojas.items(), key=lambda kv: (kv[0] != FRENTE, kv[0])), 1):
     piezas = []
     for o in partes:
         mw = M @ o.matrix_world
@@ -93,6 +100,7 @@ extras = {
     'id': f'dormi_aureo_{opcion.lower()}',
     'fuente': os.path.basename(blend), 'escena': ESCENA, 'coleccion': COL,
     'puertas': len(hojas),
+    'frente': FRENTE,
     'medidas': {},
 }
 # datos de diseño guardados por DOMO en el archivo
@@ -102,4 +110,11 @@ for o in objs:
             extras['medidas'][f'{k.lower()}_lado_m'] = round(float(o.get('lado_m', 0)), 3)
             if 'area_m2' in o.keys():
                 extras['medidas'][f'{k.lower()}_area_m2'] = round(float(o['area_m2']), 2)
+# Ventana (colección "Ventana (vidrio)"): DOMO guarda su superficie en el objeto (tipo "Ventana", area_m2).
+ventanas = [o for o in objs if o.get('tipo') == 'Ventana']
+extras['medidas']['ventanas'] = len(ventanas)
+extras['medidas']['ventana_area_m2'] = round(sum(float(o['area_m2']) for o in ventanas), 3)
+# Ventilación: persianas (tipo "Persiana"), cada una con el número del rombo ("panel") donde va.
+extras['medidas']['rombos_ventilacion'] = len({o['panel'] for o in objs if o.get('tipo') == 'Persiana'})
+print('@@ frente', FRENTE, 'ventanas', len(ventanas), extras['medidas'])
 A.exportar(salida, extras)

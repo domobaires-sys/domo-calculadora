@@ -6,7 +6,7 @@ const R = require('../reglas.js');
 const catalogo = require('../catalogo.json');
 
 const copia = () => JSON.parse(JSON.stringify(catalogo));
-const datosOk = { nombre: 'Ana Pérez', contacto: '11 5555-1234', localidad: 'Tandil', comentario: '', consentimiento: true };
+const datosOk = { nombre: 'Ana Pérez', telefono: '11 5555-1234', email: '', localidad: 'Tandil', uso: '', unidades: '1', comentario: '', consentimiento: true };
 
 test('el estado inicial es el Dormi Áureo con sus opciones predeterminadas y sin modalidad', () => {
   const e = R.crearEstado(catalogo);
@@ -108,16 +108,37 @@ test('ningún precio se muestra en cero: sin dato es "Pendiente de cotización"'
   }
 });
 
-test('las medidas se escriben con coma decimal y su unidad', () => {
+test('las medidas se escriben con coma decimal, su unidad y siempre los mismos decimales', () => {
   assert.equal(R.numero(4.747, 2), '4,75');
   assert.equal(R.numero(3, 2), '3');
-  assert.equal(R.numero(10, 0), '10');
-  assert.equal(R.numero(3.5, 2), '3,5');
   assert.equal(R.textoMedida('piso_area_m2', 15.48), '15,5 m²');
+  assert.equal(R.textoMedida('piso_area_m2', 15), '15,0 m²');
   assert.equal(R.textoMedida('alto_m', 4.747), '4,75 m');
+  // Largos con 2 decimales aunque terminen en cero: las cifras quedan alineadas.
+  assert.equal(R.textoMedida('alto_m', 4.6), '4,60 m');
+  assert.equal(R.textoMedida('lado_m', 1.795), '1,80 m');
+  assert.equal(R.textoMedida('piso_lado_m', 3), '3,00 m');
   assert.equal(R.textoMedida('paños_vidriados', 4), '4');
   assert.equal(R.medidasPrincipales({ ancho_m: 7.854, fondo_m: 7.87, alto_m: 4.747 }), '7,85 × 7,87 × 4,75 m');
+  assert.equal(R.medidasPrincipales({ ancho_m: 3.476, fondo_m: 3.476, alto_m: 3.5 }), '3,48 × 3,48 × 3,50 m');
   assert.equal(R.medidasPrincipales(null), null);
+});
+
+test('cada modelo informa su superficie con la etiqueta de lo que mide', () => {
+  const cat = copia();
+  const pat = cat.modelos.find((m) => m.id === 'dormi_patagonico');
+  pat.archivos_3d[0].medidas = { ancho_m: 4, fondo_m: 4, alto_m: 4, piso_area_m2: 15.56, piso_interior_area_m2: 14.32 };
+  const s = R.superficie(cat, R.crearEstado(cat, 'dormi_patagonico'));
+  assert.equal(s.clave, 'piso_interior_area_m2');
+  assert.equal(s.texto, '14,3 m²');
+  assert.match(s.etiqueta, /por dentro/);
+  const lista = R.listaMedidas(cat, pat.archivos_3d[0].medidas, pat);
+  assert.match(lista.find((x) => x.clave === 'piso_area_m2').etiqueta, /por fuera/);
+  // Sin etiqueta propia se usa la general.
+  assert.equal(R.etiquetaMedida(cat, null, 'alto_muros_m'), cat.etiquetas_medidas.alto_muros_m);
+  // El Áureo aclara que sus medidas incluyen el podio, también en el resumen.
+  const res = R.resumen(catalogo, R.crearEstado(catalogo, 'dormi_aureo'));
+  assert.match(res.lineas.find((l) => l.clave === 'medidas').valor, /con el podio, según el modelo 3D de DOMO$/);
 });
 
 test('la composición completa las plantillas con datos del modelo 3D y marca lo pendiente', () => {
@@ -134,27 +155,34 @@ test('la composición completa las plantillas con datos del modelo 3D y marca lo
   ];
   const lista = R.composicion(cat, R.crearEstado(cat, 'dormi_patagonico'));
   assert.deepEqual(lista.map((x) => [x.texto, x.pendiente]), [
-    ['Octogonal, de 1,8 m de lado', false],
-    ['1, de 0,9 × 2 m', false],
+    ['Octogonal, de 1,80 m de lado', false],
+    ['1, de 0,90 × 2,00 m', false],
     ['A confirmar', true],
     ['A confirmar', true],
     ['Zome', false],
   ]);
 });
 
-test('el formulario pide nombre, un teléfono o email válido, localidad y consentimiento', () => {
+test('el formulario pide nombre, un teléfono o un email válidos, localidad y consentimiento', () => {
   assert.deepEqual(R.validarContacto(datosOk), { ok: true, errores: {} });
-  assert.equal(R.validarContacto({ ...datosOk, contacto: 'ana@correo.com.ar' }).ok, true);
-  assert.equal(R.validarContacto({ ...datosOk, contacto: '+54 9 249 455-1234' }).ok, true);
+  // Con uno de los dos alcanza; con los dos también.
+  assert.equal(R.validarContacto({ ...datosOk, telefono: '', email: 'ana@correo.com.ar' }).ok, true);
+  assert.equal(R.validarContacto({ ...datosOk, telefono: '+54 9 249 455-1234', email: 'ana@correo.com.ar' }).ok, true);
+  assert.equal(R.validarContacto({ ...datosOk, telefono: '(0249) 15-444-5555' }).ok, true);
   const vacio = R.validarContacto({});
   assert.equal(vacio.ok, false);
   assert.deepEqual(Object.keys(vacio.errores).sort(), ['consentimiento', 'contacto', 'localidad', 'nombre']);
-  assert.ok(R.validarContacto({ ...datosOk, contacto: 'ana@correo' }).errores.contacto);
-  assert.ok(R.validarContacto({ ...datosOk, contacto: '1234' }).errores.contacto);
-  assert.ok(R.validarContacto({ ...datosOk, contacto: 'llamame' }).errores.contacto);
+  assert.ok(R.validarContacto({ ...datosOk, telefono: '', email: 'ana@correo' }).errores.email);
+  assert.ok(R.validarContacto({ ...datosOk, telefono: '1234' }).errores.telefono);
+  assert.ok(R.validarContacto({ ...datosOk, telefono: 'llamame' }).errores.telefono);
   assert.ok(R.validarContacto({ ...datosOk, nombre: '  A ' }).errores.nombre);
   assert.ok(R.validarContacto({ ...datosOk, consentimiento: 'true' }).errores.consentimiento);
   assert.ok(R.validarContacto({ ...datosOk, comentario: 'x'.repeat(1001) }).errores.comentario);
+  // Opcionales: uso previsto (hasta 120 caracteres) y unidades (de 1 a 99; vacío es 1).
+  assert.equal(R.validarContacto({ ...datosOk, uso: 'Casa de fin de semana', unidades: '3' }).ok, true);
+  assert.equal(R.validarContacto({ ...datosOk, unidades: '' }).ok, true);
+  assert.ok(R.validarContacto({ ...datosOk, uso: 'x'.repeat(121) }).errores.uso);
+  for (const mal of ['0', '100', '2,5', 'dos', '-1']) assert.ok(R.validarContacto({ ...datosOk, unidades: mal }).errores.unidades, mal);
 });
 
 test('el texto de la solicitud es exacto', () => {
@@ -170,23 +198,30 @@ test('el texto de la solicitud es exacto', () => {
     'Modelo: Dormi Áureo',
     'Diseño de la trama: Opción B',
     'Color de los paneles: Azul Francia',
-    `Medidas (ancho × fondo × alto): ${principales}, según el modelo 3D de DOMO`,
-    `Superficie de piso: ${R.textoMedida('piso_area_m2', med.piso_area_m2)}`,
+    `Medidas (ancho × fondo × alto): ${principales} con el podio, según el modelo 3D de DOMO`,
+    `Superficie del piso: ${R.textoMedida('piso_area_m2', med.piso_area_m2)}`,
     'Entrega: Kit',
     'Precio: Pendiente de cotización',
+    'Cantidad de unidades: 2',
     '',
     'Nombre: Ana Pérez',
-    'Contacto: 11 5555-1234',
+    'Teléfono: 11 5555-1234',
+    'Email: ana@correo.com.ar',
     'Localidad de la obra: Tandil',
+    'Uso previsto: Casa de fin de semana',
     'Comentario: Terreno con pendiente.\nConsulta por plazos.',
     '',
     `Código de configuración: d1.dormi_aureo.trama-b.color-azul.entrega-kit (catálogo ${catalogo.version_catalogo})`,
   ].join('\n');
-  const texto = R.textoSolicitud(catalogo, e, { ...datosOk, nombre: '  Ana   Pérez ', comentario: ' Terreno con pendiente.\r\nConsulta por plazos. ' });
+  const texto = R.textoSolicitud(catalogo, e, { ...datosOk, nombre: '  Ana   Pérez ', email: ' ana@correo.com.ar ', uso: ' Casa de fin de semana ', unidades: '2', comentario: ' Terreno con pendiente.\r\nConsulta por plazos. ' });
   assert.equal(texto, esperado);
-  // Sin comentario no aparece la línea; los modelos de diseño único lo dicen.
+  // Sin comentario, sin email y sin uso no aparecen esas líneas; las unidades son 1; los modelos de diseño único lo dicen.
   const c = R.textoSolicitud(catalogo, { ...R.crearEstado(catalogo, 'cubic'), modalidad: 'llave_en_mano' }, datosOk);
-  assert.ok(!/Comentario:/.test(c));
+  assert.ok(!/Comentario:|Email:|Uso previsto:/.test(c));
+  assert.match(c, /\nCantidad de unidades: 1\n/);
+  // El Patagónico informa su superficie de piso por dentro.
+  const p = R.textoSolicitud(catalogo, { ...R.crearEstado(catalogo, 'dormi_patagonico'), modalidad: 'kit' }, datosOk);
+  assert.match(p, /\nSuperficie de piso, por dentro de los muros: \d+,\d m²\n/);
   assert.match(c, /\nDiseño: Diseño único\n/);
   assert.match(c, /\nEntrega: Llave en mano\n/);
   assert.ok(!/@|5555-1234/.test(R.codificar(e)), 'el código no lleva datos personales');

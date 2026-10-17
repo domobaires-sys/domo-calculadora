@@ -8,7 +8,11 @@
  * prepara la solicitud y la copia, y verifica: cero errores en la consola,
  * nada de desplazamiento horizontal, textos exactos y estados de los botones.
  * También prueba un modelo 3D faltante, un enlace compartido, un código viejo,
- * el modo oscuro y un navegador sin WebGL. Guarda capturas ui_*.png.
+ * el modo oscuro, un navegador sin WebGL, cambios rápidos de modelo (ir y
+ * volver antes de que termine la carga o el fundido), el foco del teclado,
+ * la solicitud que se actualiza al cambiar los datos, la dirección (enlace
+ * abierto en la misma pestaña, recarga y botón Atrás del navegador) y que el
+ * modelo no quede debajo de los botones del visor. Guarda capturas ui_*.png.
  *
  * Usa Playwright y Chromium (no son dependencias del proyecto). Sin conexión:
  * las librerías de three.js salen de una copia local (THREE_LOCAL) y las
@@ -36,7 +40,7 @@ const LIBRERIAS = {
   'RoomEnvironment.js': 'examples/js/environments/RoomEnvironment.js',
 };
 const catalogo = JSON.parse(fs.readFileSync(path.join(RAIZ, 'catalogo.json'), 'utf8'));
-const DATOS = { nombre: 'Ana Pérez', contacto: '11 5555-1234', localidad: 'Tandil, Buenos Aires', comentario: 'Terreno con algo de pendiente.', consentimiento: true };
+const DATOS = { nombre: 'Ana Pérez', telefono: '11 5555-1234', email: '', localidad: 'Tandil, Buenos Aires', uso: '', unidades: '1', comentario: 'Terreno con algo de pendiente.', consentimiento: true };
 
 let fallas = 0;
 const resultados = [];
@@ -107,10 +111,12 @@ async function sinScrollHorizontal(page, donde) {
 
 async function captura(page, nombre) {
   // Espera a que termine cualquier desplazamiento suave antes de sacar la foto.
+  // (tres lecturas iguales seguidas: en un navegador lento el desplazamiento avanza a saltos)
   let y = -1;
-  for (let i = 0; i < 20; i++) {
+  let quieto = 0;
+  for (let i = 0; i < 40 && quieto < 3; i++) {
     const ahora = await page.evaluate(() => window.scrollY);
-    if (ahora === y) break;
+    quieto = ahora === y ? quieto + 1 : 0;
     y = ahora;
     await page.waitForTimeout(120);
   }
@@ -164,19 +170,27 @@ async function recorrido(navegador, html, ancho, alto, et) {
     await page.click('.muestra[data-valor="azul"]');
     await page.waitForFunction(() => !window.DomoConfigurador.visor.ocupado);
     assert.match(await page.textContent('#pie'), /Opción B · Azul Francia/);
-    assert.match(await page.textContent('.etapa-cabeza .foto-ref figcaption'), /Foto de referencia/);
+    assert.match(await page.textContent('.etapa-cabeza .foto-ref figcaption'), /Imagen de referencia/);
+    // Las miniaturas de las tramas siguen el color elegido.
+    assert.match(await page.getAttribute('.opcion-trama[data-valor="a"] img.solo-claro', 'src'), /^data:image\/webp/);
+    assert.equal(await page.locator('.muestra[aria-pressed="true"] .marca-seleccion').count(), 1, 'la muestra elegida lleva la marca con tilde');
     await sinScrollHorizontal(page, 'etapa 2');
   });
   await paso(`${et}: abrir y cerrar las puertas`, async () => {
     const boton = page.locator('#boton-puerta');
-    assert.equal((await boton.textContent()).trim(), 'Abrir puertas');
+    assert.equal(await boton.getAttribute('aria-label'), 'Abrir puertas');
+    const anchoCerrado = (await boton.boundingBox()).width;
+    const altoAcciones = (await page.locator('#visor-acciones').boundingBox()).height;
     await boton.click();
     await page.waitForFunction(() => !window.DomoConfigurador.visor.ocupado);
     const angulos = await page.evaluate(() => window.DomoConfigurador.visor.angulosPuertas());
     assert.equal(angulos.length, 2);
     for (const a of angulos) assert.ok(Math.abs(Math.abs(a) - 100) < 0.5, `ángulo ${a}`);
-    assert.equal((await page.locator('#boton-puerta').textContent()).trim(), 'Cerrar puertas');
+    assert.equal(await page.getAttribute('#boton-puerta', 'aria-label'), 'Cerrar puertas');
     assert.equal(await page.getAttribute('#boton-puerta', 'aria-pressed'), 'true');
+    // El botón no cambia de ancho ni los botones de arriba cambian de renglón.
+    assert.equal((await page.locator('#boton-puerta').boundingBox()).width, anchoCerrado);
+    assert.equal((await page.locator('#visor-acciones').boundingBox()).height, altoAcciones);
     if (!celular) await page.click('.visor-vistas button[aria-label="Frente"]');
     await page.waitForFunction(() => !window.DomoConfigurador.visor.ocupado);
     await captura(page, `${et}_2_diseno_puertas_abiertas`);
@@ -187,12 +201,32 @@ async function recorrido(navegador, html, ancho, alto, et) {
     await captura(page, `${et}_2_diseno`);
   });
   await paso(`${et}: los botones de vista mueven la cámara`, async () => {
+    const tresCuartos = await page.evaluate(() => window.DomoConfigurador.visor.orientacion);
     for (const v of ['Frente', 'Lateral', 'Desde arriba', '3/4']) {
       await page.click(`.visor-vistas button[aria-label="${v}"]`);
       await page.waitForFunction(() => !window.DomoConfigurador.visor.ocupado);
       assert.equal(await page.getAttribute(`.visor-vistas button[aria-label="${v}"]`, 'aria-pressed'), 'true');
     }
-    await page.click('.visor-vistas button:has-text("Centrar")');
+    await page.click('[data-vista="centrar"]');
+    await page.waitForFunction(() => !window.DomoConfigurador.visor.ocupado);
+    // Girar a mano desmarca la vista elegida (mientras la cámara se mueve sola, el giro a mano no se toma).
+    const caja = await page.locator('.visor-lienzo').boundingBox();
+    await page.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(caja.x + caja.width / 2 + 80, caja.y + caja.height / 2, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForFunction(() => !window.DomoConfigurador.visor.ocupado);
+    assert.equal(await page.locator('.vistas-grupo [aria-pressed="true"]').count(), 0, 'después de girar no queda ninguna vista marcada');
+    // Elegir una vista justo después de girar: la cámara llega y se queda ahí (sin envión del giro).
+    await page.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(caja.x + caja.width / 2 + 150, caja.y + caja.height / 2 + 20, { steps: 3 });
+    await page.mouse.up();
+    await page.click('.visor-vistas button[aria-label="3/4"]');
+    await page.waitForFunction(() => !window.DomoConfigurador.visor.ocupado);
+    await page.waitForTimeout(1500);
+    assert.deepEqual(await page.evaluate(() => window.DomoConfigurador.visor.orientacion), tresCuartos, 'la cámara queda en 3/4');
+    assert.equal(await page.getAttribute('.visor-vistas button[aria-label="3/4"]', 'aria-pressed'), 'true');
   });
   await paso(`${et}: etapa 3 muestra las tres modalidades y exige elegir una`, async () => {
     await page.click('#boton-siguiente');
@@ -214,16 +248,18 @@ async function recorrido(navegador, html, ancho, alto, et) {
     assert.match(await page.textContent('.resumen'), /Pendiente de cotización/);
     assert.match(await page.textContent('.resumen'), /según el modelo 3D de DOMO/);
     await page.click('#boton-preparar');
-    assert.equal(await page.locator('[aria-invalid="true"]').count(), 4, 'marca nombre, contacto, localidad y consentimiento');
+    assert.equal(await page.locator('[aria-invalid="true"]').count(), 5, 'marca nombre, teléfono y email (falta uno de los dos), localidad y consentimiento');
     assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.id), 'f-nombre');
     await captura(page, `${et}_4_errores`);
     await page.fill('#f-nombre', DATOS.nombre);
-    await page.fill('#f-contacto', 'ana@correo');
+    await page.fill('#f-email', 'ana@correo');
     await page.fill('#f-localidad', DATOS.localidad);
     await page.check('#f-consentimiento');
     await page.click('#boton-preparar');
     assert.equal(await page.locator('[aria-invalid="true"]').count(), 1, 'email incompleto');
-    await page.fill('#f-contacto', DATOS.contacto);
+    assert.equal(await page.evaluate(() => document.activeElement && document.activeElement.id), 'f-email');
+    await page.fill('#f-email', '');
+    await page.fill('#f-telefono', DATOS.telefono);
     await page.fill('#f-comentario', DATOS.comentario);
     await page.click('#boton-preparar');
     await page.waitForSelector('#solicitud-texto');
@@ -243,6 +279,21 @@ async function recorrido(navegador, html, ancho, alto, et) {
     assert.match(hash, /^[A-Za-z0-9._-]+$/);
     assert.ok(!/Ana|5555|Tandil/.test(hash), 'el enlace no lleva datos personales');
   });
+  await paso(`${et}: si cambian los datos, la solicitud se actualiza o se retira`, async () => {
+    await page.fill('#f-nombre', 'Juan Gómez');
+    assert.match(await page.textContent('#solicitud-texto'), /\nNombre: Juan Gómez\n/);
+    assert.equal((await page.textContent('#boton-copiar')).trim(), 'Copiar', 'el botón vuelve a "Copiar" con el texto nuevo');
+    await page.click('#boton-mas');
+    assert.match(await page.textContent('#solicitud-texto'), /\nCantidad de unidades: 2\n/);
+    await page.click('#boton-menos');
+    await page.uncheck('#f-consentimiento');
+    assert.equal(await page.locator('#solicitud-texto').count(), 0, 'sin consentimiento no queda nada para copiar');
+    await page.check('#f-consentimiento');
+    await page.fill('#f-nombre', DATOS.nombre);
+    await page.click('#boton-preparar');
+    await page.waitForSelector('#solicitud-texto');
+    assert.equal(await page.textContent('#solicitud-texto'), esperado);
+  });
   await paso(`${et}: el indicador de etapas permite volver atrás`, async () => {
     await page.click('#etapas li:nth-child(2) button');
     await page.waitForFunction(() => window.DomoConfigurador.etapa === 1);
@@ -250,7 +301,31 @@ async function recorrido(navegador, html, ancho, alto, et) {
     await page.waitForFunction(() => window.DomoConfigurador.etapa === 0);
     assert.equal(await page.getAttribute('.tarjeta-modelo[data-modelo="dormi_aureo"]', 'aria-pressed'), 'true');
   });
+  await paso(`${et}: el botón Atrás del navegador vuelve a la etapa anterior`, async () => {
+    await page.goBack();
+    await page.waitForFunction(() => window.DomoConfigurador.etapa === 1);
+    await page.goBack();
+    await page.waitForFunction(() => window.DomoConfigurador.etapa === 3);
+    assert.equal(await page.evaluate(() => location.origin), new URL(ORIGEN).origin, 'sigue en el configurador');
+    await page.goForward();
+    await page.waitForFunction(() => window.DomoConfigurador.etapa === 1);
+    assert.equal(await page.evaluate(() => location.hash), '#d1.dormi_aureo.trama-b.color-azul.entrega-media_obra', 'la configuración no cambia al moverse por el historial');
+  });
   if (celular) {
+    await paso(`${et}: la barra inferior mide lo mismo en todas las etapas y no corta ningún texto`, async () => {
+      const medidas = [];
+      for (let i = 0; i < 4; i++) {
+        await page.evaluate((n) => document.querySelector(`#etapas [data-etapa="${n}"]`).click(), i);
+        await page.waitForFunction((n) => window.DomoConfigurador.etapa === n, i);
+        medidas.push(await page.evaluate(() => {
+          const pie = document.getElementById('pie');
+          const cortados = [...pie.querySelectorAll('p, span')].filter((e) => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflow !== 'visible').map((e) => e.textContent);
+          return { alto: pie.getBoundingClientRect().height, cortados };
+        }));
+      }
+      assert.deepEqual(medidas.map((m) => m.cortados).flat(), [], 'textos cortados en la barra');
+      assert.equal(new Set(medidas.map((m) => m.alto)).size, 1, `alto de la barra por etapa: ${medidas.map((m) => m.alto).join(', ')}`);
+    });
     await paso(`${et}: la barra inferior queda fija y a la vista`, async () => {
       await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
       await page.waitForTimeout(200);
@@ -296,7 +371,143 @@ async function main() {
     });
     assert.ok(r.titulo < r.sello, `el título de la marca (hasta ${r.titulo}) queda debajo del sello (desde ${r.sello})`);
     assert.equal(r.fuera, 0, 'las medidas de las tarjetas quedan dentro de la tarjeta');
+    // El rótulo del visor nunca corta una cifra en dos renglones.
+    const rotulo = await page.evaluate(() => { const c = document.querySelector('.rotulo-cifra'); const r = document.createRange(); r.selectNodeContents(c); return r.getClientRects().length; });
+    assert.equal(rotulo, 1, 'las medidas del rótulo quedan en un renglón');
     await captura(page, 'celular_360_1_modelo');
+    assert.deepEqual(errores, []);
+    await ctx.close();
+  });
+
+  await paso('el modelo no queda debajo de los botones del visor (390 y 360 px, las cuatro vistas)', async () => {
+    for (const [ancho, alto] of [[390, 844], [360, 740]]) {
+      for (const hash of ['d1.dormi_aureo.trama-a', 'd1.dormi_patagonico', 'd1.cubic']) {
+        const { ctx, page, errores } = await abrir(navegador, html, { ancho, alto, hash });
+        await esperar3d(page);
+        for (const v of ['frente', 'tres_cuartos', 'lateral']) {
+          await page.click(`[data-vista="${v}"]`);
+          await page.waitForFunction(() => !window.DomoConfigurador.visor.ocupado);
+          // Filas del lienzo con algo dibujado (alfa > 0) dentro de la franja de los botones.
+          const r = await page.evaluate(() => {
+            const visor = window.DomoConfigurador.visor;
+            const img = new Image();
+            return new Promise((ok) => {
+              img.onload = () => {
+                const c = document.createElement('canvas');
+                c.width = img.width; c.height = img.height;
+                const g = c.getContext('2d');
+                g.drawImage(img, 0, 0);
+                const d = g.getImageData(0, 0, c.width, c.height).data;
+                const caja = document.getElementById('visor').getBoundingClientRect();
+                const escala = c.height / caja.height;
+                const franja = (el) => { const b = el.getBoundingClientRect(); return [Math.floor((b.top - caja.top) * escala), Math.ceil((b.bottom - caja.top) * escala), Math.floor((b.left - caja.left) * escala), Math.ceil((b.right - caja.left) * escala)]; };
+                // Solo cuenta lo opaco del modelo (no la sombra suave del suelo, alfa bajo).
+                const tapado = (y0, y1, x0, x1) => { let n = 0; for (let y = Math.max(0, y0); y < Math.min(c.height, y1); y++) for (let x = Math.max(0, x0); x < Math.min(c.width, x1); x++) if (d[(y * c.width + x) * 4 + 3] > 200) n++; return n; };
+                const zonas = ['visor-acciones', 'visor-rotulo', 'visor-vistas'].map((id) => document.getElementById(id)).filter((e) => e.childElementCount);
+                ok(zonas.map((e) => tapado(...franja(e))).reduce((a, b) => a + b, 0));
+              };
+              img.src = visor.capturar();
+            });
+          });
+          assert.ok(r < 40, `${ancho} px, ${hash}, vista ${v}: ${r} px del modelo debajo de los botones`);
+        }
+        assert.deepEqual(errores, []);
+        await ctx.close();
+      }
+    }
+  });
+
+  await paso('cambios rápidos de modelo: el visor nunca queda vacío ni sin botones', async () => {
+    for (const reducido of [false, true]) {
+      const { ctx, page, errores } = await abrir(navegador, html, { hash: 'd1.cubic', reducido });
+      await esperar3d(page);
+      const revisar = async (donde, id) => {
+        await page.waitForTimeout(1200);
+        await esperar3d(page);
+        const r = await page.evaluate(() => ({
+          actual: window.DomoConfigurador.visor.modeloActual, e3d: window.DomoConfigurador.estado3d,
+          visible: window.DomoConfigurador.visor.visible, opacidad: getComputedStyle(document.querySelector('.visor-lienzo')).opacity,
+          botones: document.querySelectorAll('#visor-acciones button, #visor-vistas button').length,
+        }));
+        assert.deepEqual(r, { actual: id, e3d: 'listo', visible: true, opacidad: '1', botones: 7 }, `${donde} (movimiento ${reducido ? 'reducido' : 'normal'})`);
+      };
+      // Un modelo ya cargado y vuelta al actual a los 60 ms (antes del fundido de 180 ms).
+      await page.click('#etapas [data-etapa="0"]');
+      await page.click('.tarjeta-modelo[data-modelo="dormi_patagonico"]');
+      await esperar3d(page);
+      await page.click('.tarjeta-modelo[data-modelo="cubic"]');
+      await esperar3d(page);
+      await page.click('.tarjeta-modelo[data-modelo="dormi_patagonico"]');
+      await page.waitForTimeout(60);
+      await page.click('.tarjeta-modelo[data-modelo="cubic"]');
+      await revisar('Patagónico y vuelta a Cubic a los 60 ms', 'cubic');
+      // Un modelo sin cargar y vuelta al actual en el mismo instante.
+      await page.evaluate(() => {
+        document.querySelector('.tarjeta-modelo[data-modelo="dormi_aureo"]').click();
+        document.querySelector('.tarjeta-modelo[data-modelo="cubic"]').click();
+      });
+      await revisar('Áureo (sin cargar) y vuelta a Cubic en el mismo instante', 'cubic');
+      // Trama B y trama A en el mismo instante.
+      await page.click('.tarjeta-modelo[data-modelo="dormi_aureo"]');
+      await esperar3d(page);
+      await page.click('#etapas [data-etapa="1"]');
+      await page.evaluate(() => {
+        document.querySelector('.opcion-trama[data-valor="b"]').click();
+        document.querySelector('.opcion-trama[data-valor="a"]').click();
+      });
+      await revisar('trama B y trama A en el mismo instante', 'dormi_aureo_a');
+      assert.deepEqual(errores, []);
+      await ctx.close();
+    }
+  });
+
+  await paso('el teclado no pierde su lugar al elegir', async () => {
+    const { ctx, page, errores } = await abrir(navegador, html, {});
+    await esperar3d(page);
+    const foco = () => page.evaluate(() => { const a = document.activeElement; return a && a !== document.body ? (a.id || a.dataset.modelo || a.dataset.valor || a.dataset.vista || a.dataset.modalidad || a.dataset.etapa) : 'BODY'; });
+    await page.focus('.tarjeta-modelo[data-modelo="cubic"]');
+    await page.keyboard.press('Enter');
+    assert.equal(await foco(), 'cubic');
+    await esperar3d(page);
+    assert.equal(await foco(), 'cubic', 'sigue en la tarjeta cuando el 3D queda listo');
+    await page.focus('#boton-puerta');
+    await page.keyboard.press('Enter');
+    assert.equal(await foco(), 'boton-puerta');
+    await esperar3d(page);
+    await page.focus('[data-vista="lateral"]');
+    await page.keyboard.press('Enter');
+    assert.equal(await foco(), 'lateral');
+    await page.click('#boton-siguiente');
+    await page.waitForFunction(() => window.DomoConfigurador.etapa === 1);
+    await page.click('#boton-siguiente');
+    await page.waitForFunction(() => window.DomoConfigurador.etapa === 2);
+    await page.focus('.opcion-entrega[data-modalidad="kit"]');
+    await page.keyboard.press('Space');
+    assert.equal(await foco(), 'kit');
+    assert.deepEqual(errores, []);
+    await ctx.close();
+  });
+
+  await paso('dirección: un enlace abierto en la misma pestaña se aplica y una recarga no se toma como enlace', async () => {
+    const { ctx, page, errores } = await abrir(navegador, html, {});
+    await esperar3d(page);
+    await page.click('.tarjeta-modelo[data-modelo="cubic"]');
+    await esperar3d(page);
+    await page.reload();
+    await page.waitForSelector('#etapa h1');
+    await esperar3d(page);
+    assert.equal(await page.evaluate(() => window.DomoConfigurador.etapa), 0, 'la recarga vuelve a la misma etapa');
+    assert.equal((await page.textContent('#avisos')).trim(), '', 'la recarga no muestra el aviso de configuración compartida');
+    assert.equal(await page.evaluate(() => window.DomoConfigurador.estado.modelo), 'cubic');
+    await page.evaluate(() => { location.hash = '#d1.dormi_aureo.trama-b.color-azul.entrega-kit'; });
+    await page.waitForFunction(() => window.DomoConfigurador.estado.modelo === 'dormi_aureo');
+    await esperar3d(page);
+    assert.deepEqual(await page.evaluate(() => window.DomoConfigurador.estado), { v: catalogo.version_catalogo, modelo: 'dormi_aureo', opciones: { trama: 'b', color: 'azul' }, modalidad: 'kit' });
+    assert.equal(await page.evaluate(() => window.DomoConfigurador.visor.modeloActual), 'dormi_aureo_b');
+    assert.match(await page.textContent('#avisos'), /configuración compartida/);
+    // El aviso se va al cambiar de etapa.
+    await page.click('#etapas [data-etapa="1"]');
+    assert.equal((await page.textContent('#avisos')).trim(), '');
     assert.deepEqual(errores, []);
     await ctx.close();
   });
@@ -370,8 +581,15 @@ async function main() {
       await esperar3d(page);
       const fondo = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
       assert.equal(fondo, 'rgb(17, 18, 20)');
-      assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.logo-oscuro')).display), 'block');
-      assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.logo-claro')).display), 'none');
+      assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.logo.solo-oscuro')).display), 'block');
+      assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.logo.solo-claro')).display), 'none');
+      // Las miniaturas también tienen su versión oscura (misma luz y sombra que el visor en oscuro).
+      const visibles = await page.evaluate(() => {
+        const ver = (sel) => [...document.querySelectorAll(sel)].filter((i) => getComputedStyle(i).display !== 'none').length;
+        return { oscuras: ver('.miniatura img.solo-oscuro'), claras: ver('.miniatura img.solo-claro') };
+      });
+      assert.equal(visibles.claras, 0, 'en oscuro no se ve ninguna miniatura clara');
+      assert.ok(visibles.oscuras >= 2, `en la etapa 2 se ven las miniaturas oscuras de las tramas (${visibles.oscuras})`);
       await captura(page, `${et}_oscuro_2_diseno`);
       assert.deepEqual(errores, []);
       await ctx.close();

@@ -57,14 +57,30 @@
   const reducido = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const suave = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-  function webglDisponible() {
-    try {
-      const c = document.createElement('canvas');
-      return !!(window.WebGLRenderingContext && (c.getContext('webgl') || c.getContext('experimental-webgl')));
-    } catch (e) {
-      return false;
+  /** Atributos del contexto WebGL: los mismos que el renderer pediría por su cuenta. */
+  const atributosContexto = (conservar) => ({
+    alpha: true, depth: true, stencil: true, antialias: true, premultipliedAlpha: true,
+    preserveDrawingBuffer: !!conservar, powerPreference: 'default', failIfMajorPerformanceCaveat: false,
+  });
+
+  /**
+   * Pide el contexto WebGL una sola vez, en el lienzo que después usa el visor
+   * (antes se creaba un contexto de prueba y se tiraba: en un celular costaba
+   * casi 200 ms). Devuelve null si el navegador no puede mostrar 3D.
+   */
+  function pedirContexto(lienzo, conservar) {
+    if (!window.WebGLRenderingContext) return null;
+    const attrs = atributosContexto(conservar);
+    for (const tipo of ['webgl2', 'webgl', 'experimental-webgl']) {
+      try {
+        const gl = lienzo.getContext(tipo, attrs);
+        if (gl) return gl;
+      } catch (e) { /* se prueba el siguiente */ }
     }
+    return null;
   }
+
+  function webglDisponible() { return !!pedirContexto(document.createElement('canvas')); }
 
   function base64ABuffer(texto) {
     const bin = atob(texto.replace(/\s+/g, ''));
@@ -91,11 +107,13 @@
     const op = opciones || {};
     const avisar = op.alEstado || function () {};
     if (!window.THREE || !THREE.GLTFLoader || !THREE.OrbitControls) { avisar('sin_libreria'); return null; }
-    if (!webglDisponible()) { avisar('sin_webgl'); return null; }
+    const lienzo = document.createElement('canvas');
+    const gl = pedirContexto(lienzo, op.conservarImagen);
+    if (!gl) { avisar('sin_webgl'); return null; }
 
     let r3;
     try {
-      r3 = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: !!op.conservarImagen });
+      r3 = new THREE.WebGLRenderer(Object.assign({ canvas: lienzo, context: gl }, atributosContexto(op.conservarImagen)));
     } catch (e) {
       avisar('sin_webgl');
       return null;
@@ -108,7 +126,6 @@
     r3.shadowMap.enabled = true;
     r3.shadowMap.type = THREE.PCFSoftShadowMap;
     r3.setClearColor(0x000000, 0);
-    const lienzo = r3.domElement;
     lienzo.className = 'visor-lienzo';
     lienzo.setAttribute('role', 'img');
     contenedor.prepend(lienzo);
@@ -142,6 +159,11 @@
     sol.shadow.bias = -0.0004;
     sol.shadow.normalBias = 0.02;
     escena.add(sol, sol.target);
+    // Relleno sin sombra del lado opuesto al sol y luz de cielo y suelo: las caras que quedan
+    // de espaldas al sol (paños cerrados del Cubic, revestimiento del Patagónico) conservan sus facetas.
+    const relleno = new THREE.DirectionalLight(0xe8eef8, 1.1);
+    escena.add(relleno, relleno.target);
+    escena.add(new THREE.HemisphereLight(0xf4f6fa, 0xb8ab96, 1.1));
 
     const matSombra = new THREE.ShadowMaterial({ opacity: 0.2 });
     matSombra.depthWrite = false;
@@ -190,14 +212,33 @@
       if (sucio) { r3.render(escena, camara); sucio = false; }
     }
     rafId = requestAnimationFrame(cuadro);
-    controles.addEventListener('start', () => { encuadreAutomatico = false; });
+    controles.addEventListener('start', () => {
+      // La persona giró o acercó el modelo a mano: ya no está en ninguna vista con nombre.
+      encuadreAutomatico = false;
+      if (op.alGirar) op.alGirar();
+    });
     controles.addEventListener('change', () => { sucio = true; });
 
+    /*
+     * Franjas del lienzo tapadas por los botones de la página (arriba y abajo, en px).
+     * El modelo se encuadra en la franja libre que queda entre ellas: la cámara usa un
+     * cuadro "virtual" del alto que haga falta, centrado en esa franja, para que el
+     * modelo ocupe la misma parte del cuadro (MARGEN) que en las miniaturas y nunca
+     * quede debajo de un botón. Si la franja libre alcanza, el cuadro es el lienzo entero.
+     */
+    const reserva = { arriba: 0, abajo: 0 };
+    const HOLGURA = 8; // px entre el modelo y los botones
     function medir() {
       const w = Math.max(1, contenedor.clientWidth);
       const h = Math.max(1, contenedor.clientHeight);
       r3.setSize(w, h, false);
-      camara.aspect = w / h;
+      const libre = Math.max(1, h - reserva.arriba - reserva.abajo - 2 * HOLGURA);
+      const altoVirtual = Math.max(1, Math.min(h, libre / MARGEN));
+      const centro = reserva.arriba + HOLGURA + libre / 2;
+      const desdeArriba = centro - altoVirtual / 2;
+      if (Math.abs(altoVirtual - h) < 0.5 && Math.abs(desdeArriba) < 0.5) camara.clearViewOffset();
+      else camara.setViewOffset(w, altoVirtual, 0, -desdeArriba, w, h);
+      camara.aspect = w / altoVirtual;
       camara.updateProjectionMatrix();
       if (actual && encuadreAutomatico) encuadrar(vistaActual, false);
       sucio = true;
@@ -388,8 +429,21 @@
       return { dist: d, dir, objetivo };
     }
 
+    /*
+     * Corta el envión que deja un giro a mano (enableDamping): si no, la cámara sigue
+     * girando sola después de llegar a una vista y el botón queda marcado en una vista
+     * que ya no es. Aplica de una vez lo que faltaba girar y deja el envión en cero.
+     */
+    function frenarInercia() {
+      if (!controles.enableDamping) return;
+      controles.enableDamping = false;
+      controles.update();
+      controles.enableDamping = true;
+    }
+
     function encuadrar(nombre, animado) {
       if (!actual) return;
+      frenarInercia();
       const caja = actual.caja;
       const tam = caja.getSize(new THREE.Vector3());
       const objetivo = caja.getCenter(new THREE.Vector3());
@@ -441,6 +495,8 @@
       const radio = Math.max(tam.x, tam.y, tam.z);
       sol.target.position.set(centro.x, 0, centro.z);
       sol.position.set(centro.x - radio * 1.1, radio * 2.2, centro.z + radio * 1.5);
+      relleno.target.position.set(centro.x, 0, centro.z);
+      relleno.position.set(centro.x + radio * 1.3, radio * 1.0, centro.z - radio * 1.5);
       const cam = sol.shadow.camera;
       const lado = radio * 1.25;
       cam.left = -lado; cam.right = lado; cam.top = lado; cam.bottom = -lado;
@@ -481,10 +537,24 @@
     }
     let enCurso = false;
 
+    /** Muestra u oculta el lienzo durante el cambio de modelo (fundido de 180 ms). */
+    function fundir(apagado) { lienzo.classList.toggle('visor-cambiando', !!apagado); }
+
+    /*
+     * Cada pedido tiene un número; solo el último puede tocar el lienzo y avisar.
+     * Todas las salidas del último pedido dejan el lienzo visible y avisan su
+     * estado ("listo", "faltante" o "error"): así un cambio rápido de modelo
+     * (ir y volver antes de que termine el fundido o la carga) nunca deja el
+     * visor vacío ni la página esperando un "listo" que no llega.
+     */
     async function mostrarSinMarca(datos, n) {
       color = datos.color || null;
       if (actual && actual.id === datos.id) {
+        // Ya está a la vista (por ejemplo, se eligió otro y se volvió enseguida):
+        // se cancela cualquier fundido de un pedido anterior.
+        fundir(false);
         aplicarColor(actual.objeto, color, true);
+        avisar('listo', { id: datos.id, puertas: actual.puertas.length });
         return { estado: 'listo', puertas: actual.puertas.length };
       }
       const yaEnMemoria = cache.has(datos.id) && cache.get(datos.id).objeto;
@@ -494,6 +564,7 @@
         objeto = await obtener(datos.id, datos.url);
       } catch (e) {
         if (n !== pedido || destruido) return { estado: 'descartado' };
+        fundir(false);
         quitarActual();
         const estado = e && e.faltante ? 'faltante' : 'error';
         avisar(estado, { id: datos.id, error: e });
@@ -519,13 +590,15 @@
       const primera0 = !actual;
       if (primera0 || reducido()) {
         cambio();
+        fundir(false);
       } else {
         // Transición suave: el lienzo se apaga, cambia el modelo y vuelve.
-        lienzo.classList.add('visor-cambiando');
+        // Si mientras tanto llega otro pedido, el lienzo queda a cargo de ese.
+        fundir(true);
         await new Promise((ok) => setTimeout(ok, 180));
         if (n !== pedido || destruido) return { estado: 'descartado' };
         cambio();
-        requestAnimationFrame(() => lienzo.classList.remove('visor-cambiando'));
+        requestAnimationFrame(() => { if (n === pedido) fundir(false); });
       }
       avisar('listo', { id: datos.id, puertas: actual.puertas.length });
       return { estado: 'listo', puertas: actual.puertas.length };
@@ -557,6 +630,19 @@
         sucio = true;
       },
       describir(texto) { lienzo.setAttribute('aria-label', texto); },
+      /** Franjas tapadas por botones, en px: { arriba, abajo }. El modelo se encuadra entre ellas. */
+      reservar(r) {
+        const arriba = Math.max(0, Math.round((r && r.arriba) || 0));
+        const abajo = Math.max(0, Math.round((r && r.abajo) || 0));
+        if (arriba === reserva.arriba && abajo === reserva.abajo) return;
+        reserva.arriba = arriba;
+        reserva.abajo = abajo;
+        medir();
+      },
+      /** Hacia dónde mira la cámara: { az, el } en grados y distancia en m. Para pruebas. */
+      get orientacion() { const o = orientacionActual(); return { az: Math.round(o.az * 10) / 10, el: Math.round(o.el * 10) / 10, dist: Math.round(o.dist * 100) / 100 }; },
+      /** true si el lienzo está a la vista (no en medio de un fundido). Para pruebas. */
+      get visible() { return !lienzo.classList.contains('visor-cambiando'); },
       /** Color actual de un material, en hexadecimal sRGB (para pruebas). */
       colorDe(material) {
         let hex = null;

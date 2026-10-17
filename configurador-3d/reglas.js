@@ -23,6 +23,9 @@
   const CLAVE_ENTREGA = 'entrega';
   const ID_VALIDO = /^[a-z0-9_]+$/;
   const CODIGO_VALIDO = /^[A-Za-z0-9._-]+$/;
+  // Cantidad de unidades que se puede pedir en la solicitud (límites del formulario, no de fabricación).
+  const UNIDADES_MIN = 1;
+  const UNIDADES_MAX = 99;
 
   const copiar = (o) => JSON.parse(JSON.stringify(o));
 
@@ -149,10 +152,17 @@
     return '';
   }
 
-  /** Valor de una medida sin unidad: largos con 2 decimales, superficies con 1, cantidades enteras. */
+  /**
+   * Valor de una medida sin unidad, siempre con la misma cantidad de decimales
+   * (así las cifras quedan alineadas): largos con 2 ("4,60"), superficies con 1
+   * ("15,5") y cantidades enteras.
+   */
   function valorMedida(clave, valor) {
+    if (typeof valor !== 'number' || !isFinite(valor)) return '';
     const u = unidadDe(clave);
-    return numero(valor, u === 'm²' ? 1 : u === 'm' ? 2 : 0);
+    const d = u === 'm²' ? 1 : u === 'm' ? 2 : 0;
+    const f = Math.pow(10, d);
+    return (Math.round(valor * f + 1e-7 * Math.sign(valor)) / f).toFixed(d).replace('.', ',');
   }
 
   function textoMedida(clave, valor) {
@@ -167,13 +177,37 @@
     return `${valorMedida('ancho_m', medidas.ancho_m)} × ${valorMedida('fondo_m', medidas.fondo_m)} × ${valorMedida('alto_m', medidas.alto_m)} m`;
   }
 
-  /** Medidas extra que el catálogo pide mostrar, en su orden, con su etiqueta. */
-  function listaMedidas(cat, medidas) {
+  /**
+   * Qué abarcan el ancho, el fondo y el alto de un modelo, si hace falta aclararlo
+   * (el del Dormi Áureo incluye el podio). Sale del catálogo: modelos[].medidas_nota.
+   */
+  function notaMedidas(modelo) { return (modelo && modelo.medidas_nota) || null; }
+
+  /** Etiqueta de una medida: la del modelo si la aclara (cada archivo mide su piso a su manera), si no la general. */
+  function etiquetaMedida(cat, modelo, clave) {
+    const propias = (modelo && modelo.etiquetas_medidas) || {};
+    const generales = (cat && cat.etiquetas_medidas) || {};
+    return propias[clave] || generales[clave] || clave;
+  }
+
+  /** Medidas extra que el catálogo pide mostrar, en su orden, con la etiqueta de ese modelo. */
+  function listaMedidas(cat, medidas, modelo) {
     if (!medidas) return [];
-    const etiquetas = cat.etiquetas_medidas || {};
     return (cat.medidas_visibles || [])
       .filter((k) => typeof medidas[k] === 'number')
-      .map((k) => ({ clave: k, etiqueta: etiquetas[k] || k, texto: textoMedida(k, medidas[k]) }));
+      .map((k) => ({ clave: k, etiqueta: etiquetaMedida(cat, modelo, k), texto: textoMedida(k, medidas[k]) }));
+  }
+
+  /**
+   * La superficie que se informa en el resumen de un modelo, con su etiqueta exacta
+   * (modelos[].medida_superficie; por defecto piso_area_m2). Null si no hay dato.
+   */
+  function superficie(cat, estado) {
+    const m = modeloDe(cat, estado.modelo);
+    const med = medidasDe(cat, estado);
+    const clave = (m && m.medida_superficie) || 'piso_area_m2';
+    if (!med || typeof med[clave] !== 'number') return null;
+    return { clave, etiqueta: etiquetaMedida(cat, m, clave), texto: textoMedida(clave, med[clave]) };
   }
 
   /** Datos disponibles para las plantillas de composición: medidas del modelo 3D y cantidad de puertas. */
@@ -244,14 +278,14 @@
     }
     const med = medidasDe(cat, estado);
     const principales = medidasPrincipales(med);
+    const nota = notaMedidas(m);
     lineas.push({
       clave: 'medidas',
       etiqueta: 'Medidas (ancho × fondo × alto)',
-      valor: principales ? `${principales}, según el modelo 3D de DOMO` : 'Modelo 3D en preparación',
+      valor: principales ? `${principales}${nota ? ` ${nota}` : ''}, según el modelo 3D de DOMO` : 'Modelo 3D en preparación',
     });
-    if (med && typeof med.piso_area_m2 === 'number') {
-      lineas.push({ clave: 'superficie', etiqueta: 'Superficie de piso', valor: textoMedida('piso_area_m2', med.piso_area_m2) });
-    }
+    const sup = superficie(cat, estado);
+    if (sup) lineas.push({ clave: 'superficie', etiqueta: sup.etiqueta, valor: sup.texto });
     const mod = modalidadDe(cat, estado.modalidad);
     lineas.push({ clave: 'entrega', etiqueta: 'Entrega', valor: mod ? mod.nombre : 'Sin elegir' });
     const precio = textoPrecio(precioDe(cat, estado));
@@ -281,28 +315,45 @@
 
   const limpiar = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
 
-  /** Valida los datos de contacto. Devuelve { ok, errores: { campo: mensaje } }. */
+  /** Cantidad de unidades como entero, o null si no es un número entero válido. */
+  function unidadesDe(valor) {
+    const t = String(valor == null ? '' : valor).trim();
+    if (!/^\d{1,3}$/.test(t)) return null;
+    return parseInt(t, 10);
+  }
+
+  /**
+   * Valida los datos de la solicitud. Devuelve { ok, errores: { campo: mensaje } }.
+   * Obligatorios: nombre, un teléfono o un email (uno alcanza), localidad y consentimiento.
+   * Opcionales: uso previsto, cantidad de unidades (1 si no se cambia) y comentario.
+   * Si no hay ni teléfono ni email, el error va en "contacto" (marca los dos campos).
+   */
   function validarContacto(datos) {
     const d = datos || {};
     const errores = {};
     const nombre = limpiar(d.nombre);
-    const contacto = limpiar(d.contacto);
+    const telefono = limpiar(d.telefono);
+    const email = limpiar(d.email);
     const localidad = limpiar(d.localidad);
+    const uso = limpiar(d.uso);
     const comentario = String(d.comentario == null ? '' : d.comentario).trim();
     if (nombre.length < 2) errores.nombre = 'Escribí tu nombre.';
     else if (nombre.length > 80) errores.nombre = 'El nombre puede tener hasta 80 caracteres.';
-    if (!contacto) {
-      errores.contacto = 'Dejanos un teléfono o un email.';
-    } else if (contacto.includes('@')) {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(contacto)) errores.contacto = 'Revisá el email: parece incompleto.';
-    } else {
-      const digitos = contacto.replace(/\D/g, '');
-      if (!/^[0-9+()\-.\s]+$/.test(contacto) || digitos.length < 8 || digitos.length > 15) {
-        errores.contacto = 'Escribí un teléfono con código de área o un email.';
+    if (!telefono && !email) errores.contacto = 'Dejanos un teléfono o un email: con uno alcanza.';
+    if (telefono) {
+      const digitos = telefono.replace(/\D/g, '');
+      if (!/^[0-9+()\-.\s]+$/.test(telefono) || digitos.length < 8 || digitos.length > 15) {
+        errores.telefono = 'Escribí el teléfono con código de área, solo con números.';
       }
     }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) errores.email = 'Revisá el email: parece incompleto.';
     if (localidad.length < 2) errores.localidad = 'Indicá la localidad donde va la obra.';
     else if (localidad.length > 80) errores.localidad = 'La localidad puede tener hasta 80 caracteres.';
+    if (uso.length > 120) errores.uso = 'El uso previsto puede tener hasta 120 caracteres.';
+    const unidades = unidadesDe(d.unidades == null || d.unidades === '' ? UNIDADES_MIN : d.unidades);
+    if (unidades === null || unidades < UNIDADES_MIN || unidades > UNIDADES_MAX) {
+      errores.unidades = `Indicá una cantidad entre ${UNIDADES_MIN} y ${UNIDADES_MAX}.`;
+    }
     if (comentario.length > 1000) errores.comentario = 'El comentario puede tener hasta 1000 caracteres.';
     if (d.consentimiento !== true) errores.consentimiento = 'Para preparar la solicitud tenés que aceptar el uso de tus datos.';
     return { ok: Object.keys(errores).length === 0, errores };
@@ -312,15 +363,22 @@
   function textoSolicitud(cat, estado, datos) {
     const r = resumen(cat, estado);
     const comentario = String((datos && datos.comentario) || '').trim().replace(/\r\n?/g, '\n');
+    const telefono = limpiar(datos.telefono);
+    const email = limpiar(datos.email);
+    const uso = limpiar(datos.uso);
+    const unidades = unidadesDe(datos.unidades == null || datos.unidades === '' ? UNIDADES_MIN : datos.unidades);
     const lineas = [
       'Solicitud de presupuesto · DOMO BAIRES',
       '',
       ...r.lineas.map((l) => `${l.etiqueta}: ${l.valor}`),
+      `Cantidad de unidades: ${unidades === null ? UNIDADES_MIN : unidades}`,
       '',
       `Nombre: ${limpiar(datos.nombre)}`,
-      `Contacto: ${limpiar(datos.contacto)}`,
-      `Localidad de la obra: ${limpiar(datos.localidad)}`,
     ];
+    if (telefono) lineas.push(`Teléfono: ${telefono}`);
+    if (email) lineas.push(`Email: ${email}`);
+    lineas.push(`Localidad de la obra: ${limpiar(datos.localidad)}`);
+    if (uso) lineas.push(`Uso previsto: ${uso}`);
     if (comentario) lineas.push(`Comentario: ${comentario}`);
     lineas.push('', `Código de configuración: ${codificar(estado)} (catálogo ${cat.version_catalogo})`);
     return lineas.join('\n');
@@ -379,10 +437,11 @@
   }
 
   return {
-    PENDIENTE, ID_VALIDO, CODIGO_VALIDO,
+    PENDIENTE, ID_VALIDO, CODIGO_VALIDO, UNIDADES_MIN, UNIDADES_MAX,
     modeloDe, modalidadDe, opcionesDe, valorDe,
     crearEstado, normalizar, aplicar,
-    archivo3d, colorMaterial, medidasDe, numero, textoMedida, valorMedida, medidasPrincipales, listaMedidas, composicion,
+    archivo3d, colorMaterial, medidasDe, numero, textoMedida, valorMedida, medidasPrincipales, notaMedidas,
+    etiquetaMedida, listaMedidas, superficie, composicion, unidadesDe,
     textoPrecio, precioDe, resumen, resumenCorto,
     validarConfiguracion, validarContacto, textoSolicitud,
     codificar, decodificar, recuperar,

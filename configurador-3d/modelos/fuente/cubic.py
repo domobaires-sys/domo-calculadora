@@ -5,19 +5,31 @@ colección "EDB · Zome N4 · …" (exportación de la calculadora EDB). La otra
 es un cubo de prueba y no se usa.
 
 Qué trae el archivo:
-  * Estructura: "Figura 0" = las 4 vigas de base (zócalo) que forman el piso en rombo;
-    "Figura 1" a "Figura 7" = los marcos de tablas de cada cara del zome de 4 lados
-    (4 triángulos bajos, 4 rombos verticales y 4 rombos de techo).
-  * Paneles: un paño ("Panel-F<figura>-<n>") sobre las figuras que DOMO marcó como cerradas.
-    En las exportaciones EDB los paneles son el cerramiento de cada figura (en el Dormi Patagónico
-    todas las figuras llevan panel y los vidrios van aparte); las figuras sin panel son las vidriadas.
-    Las fotos de DOMO lo confirman: los triángulos bajos se ven opacos (negros por fuera) y el frente
-    y el techo del frente, vidriados.
+  * Forma: zome de 4 lados (escena "Zome N4"): 4 rombos de techo que se juntan arriba, 4 paredes verticales en
+    rombo (apoyadas en una punta) y 4 triángulos que bajan hasta el piso. El piso es un cuadrado de 2,33 m de lado
+    con una esquina hacia el frente. No es un cubo apoyado en una punta: arriba se juntan 4 caras, no 3.
+  * Estructura: "Figura 0" = las 4 vigas de base (zócalo) del piso; "Figura 1" a "Figura 7" = los marcos de tablas
+    de 4,4 × 8,8 cm de cada cara (en el archivo, en tonos de madera; el negro sale de las fotos).
+  * Frente (F2, la única pared con montantes verticales): el rombo partido por dos pares de montantes en un
+    triángulo a cada lado y un hexágono al centro, que va de la punta de abajo a la de arriba del rombo. El hexágono
+    es el vano de la puerta (1,56 × 2,11 m entre las caras interiores de sus tablas).
+  * Paneles: 7 objetos "Panel-F<figura>-<n>" (colección "Paneles"): los 4 triángulos de abajo, la pared derecha (F3),
+    la del fondo (F4-02) y el rombo de techo de atrás a la derecha (F5-02). Llevan el material "Panel" (celeste,
+    alfa 0,3), que es el que la calculadora EDB les pone a todos los paneles que exporta, sean de lo que sean
+    (edb_blender_core.py, en la carpeta de DOMO: _material("Panel", (0.60, 0.82, 0.96), 0.05, 0.30)). En el archivo
+    del Dormi Patagónico pasó lo mismo: la exportación EDB "Zome N8" (DormiPatagonico.blend) trae los 32 paños del
+    techo (figuras F1 a F4, 8 de cada una) como "Panel", y en el modelo terminado de DOMO esos 32 paños son tejas
+    de "Dormi · chapa negra", opacas; el vidrio lo agregó DOMO aparte. Por eso acá un panel es el
+    cerramiento de esa cara (cara cerrada), no un vidrio. Las fotos de DOMO lo confirman para los triángulos de
+    abajo (madera por dentro) y muestran vidriados el frente y el techo del frente, que en el archivo no tienen panel.
 
-Qué se agrega (no está en el archivo; medidas tomadas de su geometría):
-  * vidrio en las figuras sin panel, dentro del espesor de las tablas;
-  * chapa negra por fuera y revestimiento de madera por dentro en las figuras con panel;
-  * la hoja de la puerta (hexágono vidriado con marco negro) en el vano hexagonal del frente;
+Qué se agrega (no está en el archivo; medidas tomadas de su geometría; a confirmar con DOMO):
+  * vidrio en las caras sin panel (el frente a los lados de la puerta, la pared izquierda y 3 rombos del techo),
+    dentro del espesor de las tablas. El archivo no trae vidrios: que esas caras sean vidriadas sale de las fotos;
+  * chapa negra por fuera y revestimiento de madera por dentro en las caras con panel (colores de las fotos);
+  * la hoja de la puerta (hexágono vidriado con marco negro) en el vano hexagonal; la bisagra a la derecha y que
+    abra hacia afuera salen de las fotos. Ojo: en la foto de DOMO la puerta es más angosta que el vano del archivo
+    (sus lados verticales son unos 2/3 del alto; en el archivo, la mitad);
   * el piso de madera sobre las vigas de base.
 
 Uso: python cubic.py <archivo.blend> <salida.glb>
