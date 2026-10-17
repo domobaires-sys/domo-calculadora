@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<!--CABEZA-->
+<title>Configurador DOMO BAIRES</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Jost:wght@400;500;600&display=swap">
+<!--/CABEZA-->
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<!--CUERPO-->
+<!-- Iconos: una sola familia (cuadrícula de 24, trazo de 1,5 px, puntas rectas). Se usan con <use href="#i-…">. -->
+<svg class="sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-puerta" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M6 21V3h12v18"/><path d="M6 3l6 2v18l-6-2"/><path d="M10 12.5v1.5"/></symbol>
+  <symbol id="i-ampliar" viewBox="0 0 24 24"><path d="M4 9V4h5"/><path d="M15 4h5v5"/><path d="M20 15v5h-5"/><path d="M9 20H4v-5"/></symbol>
+  <symbol id="i-reducir" viewBox="0 0 24 24"><path d="M9 4v5H4"/><path d="M20 9h-5V4"/><path d="M15 20v-5h5"/><path d="M4 15h5v5"/></symbol>
+  <symbol id="i-flecha-der" viewBox="0 0 24 24"><path d="M4 12h15"/><path d="M13 6l6 6-6 6"/></symbol>
+  <symbol id="i-flecha-izq" viewBox="0 0 24 24"><path d="M20 12H5"/><path d="M11 6l-6 6 6 6"/></symbol>
+  <symbol id="i-copiar" viewBox="0 0 24 24"><path d="M8 8h12v12H8z"/><path d="M16 8V4H4v12h4"/></symbol>
+  <symbol id="i-enlace" viewBox="0 0 24 24"><path d="M10 14l4-4"/><path d="M11 7l2-2a4.2 4.2 0 0 1 6 6l-2 2"/><path d="M13 17l-2 2a4.2 4.2 0 0 1-6-6l2-2"/></symbol>
+  <symbol id="i-tilde" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></symbol>
+  <symbol id="i-menos" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-mas" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-centrar" viewBox="0 0 24 24"><path d="M8 8h8v8H8z"/><path d="M12 3v3"/><path d="M12 18v3"/><path d="M3 12h3"/><path d="M18 12h3"/></symbol>
+</svg>
+<div class="app" id="app">
+  <header class="cabecera">
+    <div class="marca">
+      <img class="logo solo-claro" src="imagenes/logo-domo.png" width="249" height="240" alt="DOMO BAIRES">
+      <img class="logo solo-oscuro" src="imagenes/logo-domo-blanco.png" width="249" height="240" alt="DOMO BAIRES">
+      <div class="marca-texto">
+        <span class="marca-titulo">Configurador de Dormis</span>
+        <span class="marca-sub">DOMO BAIRES</span>
+      </div>
+    </div>
+    <span class="sello">Prototipo privado</span>
+  </header>
+
+  <section class="escenario" aria-label="Vista 3D del modelo">
+    <div class="visor" id="visor">
+      <div class="visor-arriba">
+        <div class="visor-rotulo" id="visor-rotulo"></div>
+        <div class="visor-acciones" id="visor-acciones"></div>
+      </div>
+      <div class="visor-vistas" id="visor-vistas" role="toolbar" aria-label="Vistas de la cámara"></div>
+      <div class="visor-capa" id="visor-capa" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Configuración">
+    <nav class="etapas" aria-label="Etapas de la configuración"><ol id="etapas"></ol></nav>
+    <div class="avisos" id="avisos" aria-live="polite"></div>
+    <div class="etapa" id="etapa"></div>
+    <div class="pie" id="pie"></div>
+  </section>
+</div>
+<noscript><p class="sin-js">Este configurador necesita JavaScript activado.</p></noscript>
+<!--/CUERPO-->
+<!--LIBRERIAS-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+<!--/LIBRERIAS-->
+<script src="reglas.js"></script>
+<script src="visor.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

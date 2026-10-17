@@ -1,0 +1,506 @@
+{
+  "version_catalogo": "1.0.0",
+  "fecha": "2026-10-16",
+  "nota": "Catálogo del configurador de DOMO BAIRES (prototipo privado). Cada dato indica de dónde sale. Las medidas las escribe scripts/medidas.js leyendo los modelos 3D: no se editan a mano.",
+  "fuentes": {
+    "pedido_domo": "Pedido de DOMO BAIRES (16/10/2026): solo los tres Dormis (Dormi Áureo, Dormi Patagónico y Cubic) y las modalidades Kit, Media obra y Llave en mano.",
+    "blend_aureo_patagonico": "Archivo de Blender de DOMO \"DOMO_Dormi_Aureo_y_Patagonico.blend\".",
+    "blend_cubica": "Archivo de Blender de DOMO \"cubica.blend\".",
+    "calculadora_anterior": "Calculadora anterior de DOMO (configurador_domo/index.html): colores de los paneles del Áureo (COLORES_AUREO) y descripciones de las modalidades.",
+    "fotos_domo": "Fotos y capturas de DOMO (carpeta referencias/ del proyecto).",
+    "modelo_3d": "Dato leído del modelo 3D (GLB) armado desde el archivo de Blender de DOMO: medidas, puertas y materiales."
+  },
+  "estados": {
+    "confirmado": "Sale de un archivo de DOMO o se calcula de su geometría.",
+    "pendiente": "Falta el dato de DOMO: se muestra \"A confirmar\" o \"Pendiente de cotización\"."
+  },
+  "precios_ayuda": {
+    "nota": "Hoy todos los precios están pendientes. Para cargar uno, reemplazar { \"estado\": \"pendiente\" } por un precio con valor. Un precio en 0, sin importe o sin moneda se muestra \"Pendiente de cotización\".",
+    "ejemplo": {
+      "estado": "valor",
+      "importe": 1000000,
+      "moneda": "ARS",
+      "iva": "incluido",
+      "vigencia": "2026-12-31",
+      "fuente": "Lista de precios de DOMO de la fecha"
+    },
+    "iva_valores": ["incluido", "no_incluido"]
+  },
+  "etiquetas_medidas": {
+    "ancho_m": "Ancho",
+    "fondo_m": "Fondo",
+    "alto_m": "Alto",
+    "piso_area_m2": "Superficie de piso",
+    "piso_interior_area_m2": "Superficie interior",
+    "piso_lado_m": "Lado del piso",
+    "podio_lado_m": "Lado del podio",
+    "lado_m": "Lado de la planta",
+    "alto_muros_m": "Alto de los muros",
+    "puerta_ancho_m": "Ancho de la puerta",
+    "puerta_alto_m": "Alto de la puerta",
+    "paños_vidriados": "Paños vidriados"
+  },
+  "medidas_visibles": ["piso_area_m2", "piso_interior_area_m2", "piso_lado_m", "podio_lado_m", "lado_m", "alto_muros_m"],
+  "modalidades": [
+    {
+      "id": "kit",
+      "nombre": "Kit",
+      "descripcion": "Recibís la estructura cortada y numerada, con manual de montaje.",
+      "fuente_nombre": "pedido_domo",
+      "fuente_descripcion": "calculadora_anterior"
+    },
+    {
+      "id": "media_obra",
+      "nombre": "Media obra",
+      "descripcion": "Montamos la estructura y el cerramiento. Terminaciones interiores por tu cuenta.",
+      "fuente_nombre": "pedido_domo",
+      "fuente_descripcion": "calculadora_anterior"
+    },
+    {
+      "id": "llave_en_mano",
+      "nombre": "Llave en mano",
+      "descripcion": "Obra completa, con terminaciones.",
+      "fuente_nombre": "pedido_domo",
+      "fuente_descripcion": "calculadora_anterior"
+    }
+  ],
+  "modelos": [
+    {
+      "id": "dormi_aureo",
+      "nombre": "Dormi Áureo",
+      "fuente": "pedido_domo",
+      "descripcion": "Domo de madera de geometría áurea, sobre podio, con dos puertas.",
+      "fuente_descripcion": "blend_aureo_patagonico",
+      "imagen": {
+        "archivo": "imagenes/dormi_aureo.jpg",
+        "alt": "Captura del Dormi Áureo en el archivo de Blender de DOMO",
+        "fuente": "fotos_domo"
+      },
+      "modelo_3d": "dormi_aureo_a",
+      "archivos_3d": [
+        {
+          "id": "dormi_aureo_a",
+          "archivo": "modelos/dormi_aureo_a.glb",
+          "miniatura": "imagenes/miniatura_dormi_aureo_a.webp",
+          "fuente": "blend_aureo_patagonico",
+          "coleccion": "Dormi Áureo · opción A",
+          "estado": "listo",
+          "medidas": {
+            "ancho_m": 7.854,
+            "fondo_m": 7.87,
+            "alto_m": 4.747,
+            "podio_lado_m": 4.854,
+            "piso_lado_m": 3,
+            "piso_area_m2": 15.48,
+            "ventanas": 1,
+            "ventana_area_m2": 2.781,
+            "rombos_ventilacion": 4
+          },
+          "puertas": 2,
+          "origen_glb": {
+            "archivo_blend": "DOMO_Dormi_Aureo_y_Patagonico.blend",
+            "escena": "DOMO Baires · Dormi Áureo y Patagónico",
+            "coleccion": "Dormi Áureo · opción A"
+          },
+          "colores": {
+            "piso": "#d4bc99",
+            "podio": "#c5c4bf",
+            "incrustacion": "#ad8b65",
+            "panel": "#efddbc",
+            "acero": "#95979b",
+            "persiana": "#dabc95",
+            "madera_dodecaedro": "#ddbc90",
+            "madera_icosaedro": "#e7cea6",
+            "puerta": "#bc9976",
+            "puerta_detalle": "#ad8b65",
+            "vidrio": "#bcd9e6"
+          }
+        },
+        {
+          "id": "dormi_aureo_b",
+          "archivo": "modelos/dormi_aureo_b.glb",
+          "miniatura": "imagenes/miniatura_dormi_aureo_b.webp",
+          "fuente": "blend_aureo_patagonico",
+          "coleccion": "Dormi Áureo · opción B",
+          "estado": "listo",
+          "medidas": {
+            "ancho_m": 7.854,
+            "fondo_m": 7.87,
+            "alto_m": 4.747,
+            "podio_lado_m": 4.854,
+            "piso_lado_m": 3,
+            "piso_area_m2": 15.48,
+            "ventanas": 1,
+            "ventana_area_m2": 2.781,
+            "rombos_ventilacion": 4
+          },
+          "puertas": 2,
+          "origen_glb": {
+            "archivo_blend": "DOMO_Dormi_Aureo_y_Patagonico.blend",
+            "escena": "DOMO Baires · Dormi Áureo y Patagónico",
+            "coleccion": "Dormi Áureo · opción B"
+          },
+          "colores": {
+            "piso": "#d4bc99",
+            "podio": "#c5c4bf",
+            "incrustacion": "#ad8b65",
+            "panel": "#efddbc",
+            "acero": "#95979b",
+            "persiana": "#dabc95",
+            "madera_dodecaedro": "#ddbc90",
+            "madera_icosaedro": "#e7cea6",
+            "puerta": "#bc9976",
+            "puerta_detalle": "#ad8b65",
+            "vidrio": "#bcd9e6"
+          }
+        }
+      ],
+      "opciones": [
+        {
+          "id": "trama",
+          "nombre": "Diseño de la trama",
+          "tipo": "modelo_3d",
+          "predeterminada": "a",
+          "fuente": "blend_aureo_patagonico",
+          "valores": [
+            {
+              "id": "a",
+              "nombre": "Opción A",
+              "detalle": "Cada rombo, cruzado en X por dos diagonales de madera, con cuatro triángulos chicos.",
+              "archivo_3d": "dormi_aureo_a",
+              "fuente": "blend_aureo_patagonico"
+            },
+            {
+              "id": "b",
+              "nombre": "Opción B",
+              "detalle": "Cada rombo, partido en dos por una sola diagonal, con dos triángulos grandes.",
+              "archivo_3d": "dormi_aureo_b",
+              "fuente": "blend_aureo_patagonico"
+            }
+          ]
+        },
+        {
+          "id": "color",
+          "nombre": "Color de los paneles",
+          "tipo": "color_material",
+          "material": "panel",
+          "ayuda": "La estructura de madera no cambia nunca.",
+          "fuente_ayuda": "calculadora_anterior",
+          "predeterminada": "natural",
+          "valores": [
+            {
+              "id": "natural",
+              "nombre": "Natural",
+              "detalle": "El color del archivo de DOMO.",
+              "hex": null,
+              "fuente": "blend_aureo_patagonico"
+            },
+            {
+              "id": "azul",
+              "nombre": "Azul Francia",
+              "hex": "#1f3f8f",
+              "fuente": "calculadora_anterior"
+            },
+            {
+              "id": "blanco",
+              "nombre": "Blanco",
+              "hex": "#eef1f5",
+              "fuente": "calculadora_anterior"
+            },
+            { "id": "negro", "nombre": "Negro", "hex": "#1c1d21", "fuente": "calculadora_anterior" }
+          ]
+        }
+      ],
+      "composicion": [
+        {
+          "id": "estructura",
+          "nombre": "Estructura",
+          "valor": "Madera, con nodos de acero",
+          "estado": "confirmado",
+          "fuente": "modelo_3d"
+        },
+        {
+          "id": "puertas",
+          "nombre": "Puertas",
+          "plantilla": "{puertas}, cada una con su escalón",
+          "estado": "confirmado",
+          "fuente": "blend_aureo_patagonico"
+        },
+        {
+          "id": "piso",
+          "nombre": "Piso",
+          "plantilla": "Pentagonal, de {piso_lado_m} m de lado",
+          "estado": "confirmado",
+          "fuente": "blend_aureo_patagonico"
+        },
+        {
+          "id": "podio",
+          "nombre": "Podio",
+          "plantilla": "Pentagonal, de {podio_lado_m} m de lado",
+          "estado": "confirmado",
+          "fuente": "blend_aureo_patagonico"
+        },
+        {
+          "id": "ventanas",
+          "nombre": "Ventanas",
+          "plantilla": "{ventanas} vidriada, de {ventana_area_m2} m²",
+          "estado": "confirmado",
+          "fuente": "blend_aureo_patagonico"
+        },
+        {
+          "id": "ventilacion",
+          "nombre": "Ventilación",
+          "plantilla": "{rombos_ventilacion} rombos con persianas",
+          "estado": "confirmado",
+          "fuente": "blend_aureo_patagonico"
+        }
+      ],
+      "precios": {
+        "kit": { "estado": "pendiente" },
+        "media_obra": { "estado": "pendiente" },
+        "llave_en_mano": { "estado": "pendiente" }
+      },
+      "medidas": {
+        "ancho_m": 7.854,
+        "fondo_m": 7.87,
+        "alto_m": 4.747,
+        "podio_lado_m": 4.854,
+        "piso_lado_m": 3,
+        "piso_area_m2": 15.48,
+        "ventanas": 1,
+        "ventana_area_m2": 2.781,
+        "rombos_ventilacion": 4
+      },
+      "medidas_fuente": "modelos/dormi_aureo_a.glb",
+      "medidas_nota": "con el podio",
+      "fuente_medidas_nota": "modelo_3d",
+      "etiquetas_medidas": { "piso_area_m2": "Superficie del piso" }
+    },
+    {
+      "id": "dormi_patagonico",
+      "nombre": "Dormi Patagónico",
+      "fuente": "pedido_domo",
+      "descripcion": "Planta octogonal de madera y vidrio, con cubierta zome de chapa negra.",
+      "fuente_descripcion": "blend_aureo_patagonico",
+      "imagen": {
+        "archivo": "imagenes/dormi_patagonico.jpg",
+        "alt": "Render del Dormi Patagónico de DOMO",
+        "fuente": "fotos_domo"
+      },
+      "modelo_3d": "dormi_patagonico",
+      "archivos_3d": [
+        {
+          "id": "dormi_patagonico",
+          "archivo": "modelos/dormi_patagonico.glb",
+          "miniatura": "imagenes/miniatura_dormi_patagonico.webp",
+          "fuente": "blend_aureo_patagonico",
+          "coleccion": "Zome Dormi octogonal",
+          "estado": "listo",
+          "medidas": {
+            "ancho_m": 4.573,
+            "fondo_m": 4.573,
+            "alto_m": 4.595,
+            "alto_muros_m": 2.25,
+            "lado_m": 1.795,
+            "piso_area_m2": 15.56,
+            "piso_interior_area_m2": 14.32,
+            "paños_vidriados": 4,
+            "puerta_ancho_m": 0.9,
+            "puerta_alto_m": 2
+          },
+          "puertas": 1,
+          "origen_glb": {
+            "archivo_blend": "DOMO_Dormi_Aureo_y_Patagonico.blend",
+            "escena": "Zome Dormi octogonal",
+            "coleccion": "Zome Dormi octogonal"
+          },
+          "colores": {
+            "piso": "#b4875a",
+            "marco_negro": "#35302f",
+            "revestimiento_madera": "#a8714a",
+            "chapa_negra": "#272729",
+            "cielorraso_madera": "#dcc196",
+            "vidrio": "#daecf9"
+          }
+        }
+      ],
+      "opciones": [],
+      "composicion": [
+        {
+          "id": "planta",
+          "nombre": "Planta",
+          "plantilla": "Octogonal, de {lado_m} m de lado",
+          "estado": "confirmado",
+          "fuente": "blend_aureo_patagonico"
+        },
+        {
+          "id": "estructura",
+          "nombre": "Estructura",
+          "valor": "Muros de madera en negro: soleras, montantes y premarcos",
+          "estado": "confirmado",
+          "fuente": "blend_aureo_patagonico"
+        },
+        {
+          "id": "puertas",
+          "nombre": "Puertas",
+          "plantilla": "{puertas} al frente, con vano de {puerta_ancho_m} × {puerta_alto_m} m",
+          "estado": "confirmado",
+          "fuente": "blend_aureo_patagonico"
+        },
+        {
+          "id": "panos_vidriados",
+          "nombre": "Paños vidriados",
+          "plantilla": "{paños_vidriados} fijos: los dos del frente en diagonal y los dos costados",
+          "estado": "confirmado",
+          "fuente": "blend_aureo_patagonico"
+        },
+        {
+          "id": "muros_cerrados",
+          "nombre": "Muros cerrados",
+          "valor": "3, los de atrás",
+          "estado": "confirmado",
+          "fuente": "blend_aureo_patagonico"
+        },
+        {
+          "id": "cubierta",
+          "nombre": "Cubierta",
+          "valor": "Zome de 32 paños de chapa negra (4 filas de 8), sobre 136 barras",
+          "estado": "confirmado",
+          "fuente": "blend_aureo_patagonico"
+        }
+      ],
+      "precios": {
+        "kit": { "estado": "pendiente" },
+        "media_obra": { "estado": "pendiente" },
+        "llave_en_mano": { "estado": "pendiente" }
+      },
+      "medidas": {
+        "ancho_m": 4.573,
+        "fondo_m": 4.573,
+        "alto_m": 4.595,
+        "alto_muros_m": 2.25,
+        "lado_m": 1.795,
+        "piso_area_m2": 15.56,
+        "piso_interior_area_m2": 14.32,
+        "paños_vidriados": 4,
+        "puerta_ancho_m": 0.9,
+        "puerta_alto_m": 2
+      },
+      "medidas_fuente": "modelos/dormi_patagonico.glb",
+      "medida_superficie": "piso_interior_area_m2",
+      "etiquetas_medidas": {
+        "piso_area_m2": "Superficie de la planta, por fuera de los muros",
+        "piso_interior_area_m2": "Superficie de piso, por dentro de los muros",
+        "lado_m": "Lado de la planta, por fuera"
+      }
+    },
+    {
+      "id": "cubic",
+      "nombre": "Cubic",
+      "fuente": "pedido_domo",
+      "descripcion": "Zome de 4 lados con estructura de tablas, caras cerradas y caras vidriadas.",
+      "fuente_descripcion": "blend_cubica",
+      "imagen": {
+        "archivo": "imagenes/cubic.jpg",
+        "alt": "Foto del Cubic de DOMO con la puerta abierta",
+        "fuente": "fotos_domo"
+      },
+      "modelo_3d": "cubic",
+      "archivos_3d": [
+        {
+          "id": "cubic",
+          "archivo": "modelos/cubic.glb",
+          "miniatura": "imagenes/miniatura_cubic.webp",
+          "fuente": "blend_cubica",
+          "coleccion": "Zome N4",
+          "estado": "listo",
+          "medidas": {
+            "ancho_m": 3.476,
+            "fondo_m": 3.476,
+            "alto_m": 3.5,
+            "piso_area_m2": 5.44,
+            "piso_lado_m": 2.333,
+            "puerta_ancho_m": 1.562,
+            "puerta_alto_m": 2.113
+          },
+          "puertas": 1,
+          "origen_glb": {
+            "archivo_blend": "cubica.blend",
+            "escena": "Zome N4",
+            "coleccion": "EDB · Zome N4 · 18:07:35"
+          },
+          "colores": {
+            "marco_negro": "#1d1e20",
+            "piso": "#c4a273",
+            "chapa_negra": "#27282b",
+            "revestimiento_madera": "#caae8a",
+            "vidrio": "#bcd9e6"
+          }
+        }
+      ],
+      "opciones": [],
+      "composicion": [
+        {
+          "id": "forma",
+          "nombre": "Forma",
+          "valor": "Zome de 4 lados: 4 rombos de techo, 4 paredes en rombo y 4 triángulos que bajan al piso",
+          "estado": "confirmado",
+          "fuente": "blend_cubica"
+        },
+        {
+          "id": "estructura",
+          "nombre": "Estructura",
+          "valor": "Tablas de 4,4 × 8,8 cm",
+          "estado": "confirmado",
+          "fuente": "blend_cubica"
+        },
+        {
+          "id": "puertas",
+          "nombre": "Puertas",
+          "plantilla": "{puertas} al frente, en el hexágono central de la pared",
+          "estado": "confirmado",
+          "fuente": "blend_cubica"
+        },
+        {
+          "id": "caras_cerradas",
+          "nombre": "Caras cerradas",
+          "valor": "7 de 12: los 4 triángulos de abajo, la pared derecha, la del fondo y el rombo del techo de atrás a la derecha",
+          "estado": "confirmado",
+          "fuente": "blend_cubica",
+          "nota": "Son las 7 caras que llevan panel en el archivo (colección Paneles). La calculadora EDB les pone a todos los paneles el mismo material celeste translúcido; en el Patagónico, esos paneles son la chapa del techo. Las fotos muestran cerrados los triángulos de abajo."
+        },
+        {
+          "id": "caras_vidriadas",
+          "nombre": "Caras vidriadas",
+          "valor": "Las otras 5: el frente a los lados de la puerta, la pared izquierda y 3 rombos del techo",
+          "estado": "pendiente",
+          "fuente": "fotos_domo",
+          "nota": "El archivo no trae vidrios: esas caras no tienen panel. El 3D las muestra vidriadas porque así se ven el frente y el techo en las fotos. A confirmar con DOMO, junto con los colores (negro por fuera, madera por dentro) y el ancho de la puerta."
+        },
+        {
+          "id": "piso",
+          "nombre": "Piso",
+          "plantilla": "Cuadrado de {piso_lado_m} m de lado, con una esquina hacia el frente",
+          "estado": "confirmado",
+          "fuente": "blend_cubica"
+        }
+      ],
+      "precios": {
+        "kit": { "estado": "pendiente" },
+        "media_obra": { "estado": "pendiente" },
+        "llave_en_mano": { "estado": "pendiente" }
+      },
+      "medidas": {
+        "ancho_m": 3.476,
+        "fondo_m": 3.476,
+        "alto_m": 3.5,
+        "piso_area_m2": 5.44,
+        "piso_lado_m": 2.333,
+        "puerta_ancho_m": 1.562,
+        "puerta_alto_m": 2.113
+      },
+      "medidas_fuente": "modelos/cubic.glb",
+      "etiquetas_medidas": { "piso_area_m2": "Superficie del piso, hasta el borde exterior de la base" }
+    }
+  ]
+}
